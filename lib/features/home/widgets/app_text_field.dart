@@ -1,5 +1,6 @@
 // lib/core/widgets/app_text_field.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/src/services/text_formatter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
@@ -18,6 +19,7 @@ class AppTextField extends StatelessWidget {
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onChanged;
   final FocusNode? focusNode;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AppTextField({
     super.key,
@@ -32,6 +34,7 @@ class AppTextField extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.focusNode,
+    this.inputFormatters,
   });
 
   @override
@@ -57,6 +60,7 @@ class AppTextField extends StatelessWidget {
           validator: validator,
           onChanged: onChanged,
           focusNode: focusNode,
+          inputFormatters: inputFormatters,
           style: AppTypography.contentRegular.copyWith(color: AppColorsNeutral.neutral900), // Estilo do texto digitado
           decoration: InputDecoration(
             hintText: hintText,
