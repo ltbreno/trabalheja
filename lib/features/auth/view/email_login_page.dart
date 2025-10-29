@@ -6,6 +6,7 @@ import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
+import 'package:trabalheja/features/onboarding/view/onboarding_page.dart';
 
 class EmailLoginPage extends StatefulWidget { // Alterado para StatefulWidget
   const EmailLoginPage({super.key});
@@ -126,6 +127,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
                        String password = _passwordController.text;
                        print('Email: $email, Senha: $password');
                        // TODO: Implementar lógica de autenticação
+                       Navigator.push(context, MaterialPageRoute(builder: (context) => const OnboardingPage()));
                     }
                   },
                   minWidth: double.infinity,
