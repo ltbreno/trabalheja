@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart'; // Importar image_picker
 import 'package:dotted_border/dotted_border.dart'; // Importar dotted_border
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
+import 'package:trabalheja/core/widgets/MainAppShell.dart';
 
 class FreelancerPicturePage extends StatefulWidget {
   // Receber dados das telas anteriores
@@ -31,6 +33,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
   bool _isLoading = false;
   XFile? _imageFile; // Para armazenar a imagem selecionada
   final ImagePicker _picker = ImagePicker();
+  final _supabase = Supabase.instance.client;
 
   // Função para selecionar imagem da galeria
   Future<void> _pickImage() async {
@@ -50,7 +53,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
     }
   }
 
-  void _finalizeRegistration() async {
+  Future<void> _finalizeRegistration() async {
     if (_imageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, envie uma foto de perfil.')),
@@ -60,24 +63,214 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
 
     setState(() => _isLoading = true);
 
-    // TODO:
-    // 1. Fazer upload da imagem (_imageFile.path) para o Supabase Storage
-    //    e obter a URL pública.
-    // 2. Salvar/Atualizar o perfil do usuário na tabela 'profiles' com
-    //    todos os dados coletados (nome, endereço, raio, e a URL da foto).
-    // 3. (Opcional) Salvar os dados do cadastro original (auth.signUp)
-    //    neste ponto, se ainda não foi feito.
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
 
-    print('Finalizando cadastro com todos os dados...');
-    await Future.delayed(const Duration(seconds: 2)); // Simular
+      // 1. Fazer upload da imagem para o Supabase Storage
+      final fileExtension = _imageFile!.path.split('.').last.toLowerCase();
+      final fileName = '${user.id}/profile_picture.$fileExtension';
+      
+      print('📤 Iniciando upload de foto de perfil...');
+      print('   Bucket: profiles');
+      print('   FileName: $fileName');
+      print('   Extension: $fileExtension');
+      
+      // Determinar contentType baseado na extensão
+      String contentType;
+      if (fileExtension == 'png') {
+        contentType = 'image/png';
+      } else if (fileExtension == 'jpg' || fileExtension == 'jpeg') {
+        contentType = 'image/jpeg';
+      } else {
+        contentType = 'image/jpeg'; // fallback
+      }
+      
+      final imageFile = File(_imageFile!.path);
+      
+      print('   ContentType: $contentType');
+      print('   File size: ${await imageFile.length()} bytes');
+      
+      // Tentar upload usando o método correto
+      try {
+        await _supabase.storage
+            .from('profiles')
+            .upload(
+              fileName,
+              imageFile,
+              fileOptions: FileOptions(
+                contentType: contentType,
+                upsert: true,
+              ),
+            );
+        print('✅ Upload concluído com sucesso!');
+      } catch (uploadError) {
+        print('❌ Erro no upload: $uploadError');
+        // Tentar método alternativo se o primeiro falhar
+        final imageBytes = await imageFile.readAsBytes();
+        await _supabase.storage
+            .from('profiles')
+            .uploadBinary(
+              fileName,
+              imageBytes,
+              fileOptions: FileOptions(
+                contentType: contentType,
+                upsert: true,
+              ),
+            );
+        print('✅ Upload concluído usando método alternativo!');
+      }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      // TODO: Navegar para a tela principal/dashboard
-      // Navigator.of(context).pushAndRemoveUntil(...)
+      // 2. Obter URL pública da imagem
+      final imageUrl = _supabase.storage
+          .from('profiles')
+          .getPublicUrl(fileName);
+      
+      print('   URL pública: $imageUrl');
+
+      // 3. Buscar todos os dados já salvos nas páginas anteriores
+      // Como o perfil ainda não existe (não foi criado), vamos buscar do auth.user
+      // e das outras fontes de dados que precisamos
+      print('📋 [FreelancerPicturePage] Buscando dados coletados...');
+      
+      // Buscar dados do perfil atual (se existir algum dado temporário)
+      Map<String, dynamic>? existingProfileData;
+      try {
+        final existing = await _supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+        
+        if (existing != null) {
+          existingProfileData = Map<String, dynamic>.from(existing);
+          print('   ✅ Dados existentes encontrados no perfil');
+        }
+      } catch (e) {
+        print('   ℹ️ Nenhum perfil existente encontrado (esperado para freelancer)');
+      }
+
+      // Buscar email do usuário autenticado
+      final userEmail = user.email ?? user.userMetadata?['email'] as String?;
+      if (userEmail == null) {
+        throw Exception('Email do usuário não encontrado');
+      }
+
+      // Buscar phone dos metadados
+      final userPhone = user.userMetadata?['phone'] as String?;
+      if (userPhone == null) {
+        throw Exception('Telefone do usuário não encontrado');
+      }
+
+      // Preparar dados completos para criação do perfil FREELANCER
+      final profileData = <String, dynamic>{
+        'id': user.id,
+        'account_type': 'freelancer',
+        'email': userEmail,
+        'phone': userPhone,
+        'profile_picture_url': imageUrl,
+      };
+
+      // Adicionar dados que podem ter sido salvos nas páginas anteriores
+      if (existingProfileData != null) {
+        // Se houver dados existentes (por algum motivo), mesclar
+        if (existingProfileData['full_name'] != null) {
+          profileData['full_name'] = existingProfileData['full_name'];
+        }
+        if (existingProfileData['services'] != null) {
+          profileData['services'] = existingProfileData['services'];
+        }
+        if (existingProfileData['address_cep'] != null) {
+          profileData['address_cep'] = existingProfileData['address_cep'];
+        }
+        if (existingProfileData['address_bairro'] != null) {
+          profileData['address_bairro'] = existingProfileData['address_bairro'];
+        }
+        if (existingProfileData['address_rua'] != null) {
+          profileData['address_rua'] = existingProfileData['address_rua'];
+        }
+        if (existingProfileData['address_numero'] != null) {
+          profileData['address_numero'] = existingProfileData['address_numero'];
+        }
+        if (existingProfileData['address_complemento'] != null) {
+          profileData['address_complemento'] = existingProfileData['address_complemento'];
+        }
+        if (existingProfileData['address_cidade'] != null) {
+          profileData['address_cidade'] = existingProfileData['address_cidade'];
+        }
+        if (existingProfileData['service_radius'] != null) {
+          profileData['service_radius'] = existingProfileData['service_radius'];
+        }
+        if (existingProfileData['service_latitude'] != null) {
+          profileData['service_latitude'] = existingProfileData['service_latitude'];
+        }
+        if (existingProfileData['service_longitude'] != null) {
+          profileData['service_longitude'] = existingProfileData['service_longitude'];
+        }
+      }
+
+      // Debug: mostrar o que será criado
+      print('📤 [FreelancerPicturePage] Criando perfil FREELANCER completo:');
+      print('   - id: ${profileData['id']}');
+      print('   - account_type: ${profileData['account_type']}');
+      print('   - email: ${profileData['email']}');
+      print('   - phone: ${profileData['phone']}');
+      print('   - profile_picture_url: ${profileData['profile_picture_url']}');
+      print('   - service_latitude: ${profileData['service_latitude'] ?? 'não definido'}');
+      print('   - service_longitude: ${profileData['service_longitude'] ?? 'não definido'}');
+
+      // Criar o perfil FREELANCER pela primeira vez (INSERT completo)
+      // Como o perfil não existe ainda, fazemos INSERT com todos os dados
+      await _supabase.from('profiles').insert(profileData);
+      
+      print('✅ [FreelancerPicturePage] Perfil FREELANCER criado com sucesso!');
+
+      if (!mounted) return;
+
+      // 4. Navegar para a tela principal
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const MainAppShell()),
+        (route) => false,
+      );
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cadastro finalizado com sucesso!')),
       );
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Log detalhado do erro
+      print('❌ ERRO CRÍTICO no upload:');
+      print('   Tipo: ${e.runtimeType}');
+      print('   Mensagem: ${e.toString()}');
+      if (e is StorageException) {
+        print('   StatusCode: ${e.statusCode}');
+        print('   Message: ${e.message}');
+      }
+      
+      // Mensagem de erro mais específica para o usuário
+      String errorMessage = 'Erro ao fazer upload da foto.';
+      if (e.toString().contains('bucket') || e.toString().contains('not found')) {
+        errorMessage = 'Bucket de armazenamento não encontrado. Verifique as configurações.';
+      } else if (e.toString().contains('permission') || e.toString().contains('policy')) {
+        errorMessage = 'Sem permissão para fazer upload. Verifique as políticas do Storage.';
+      } else if (e.toString().contains('size') || e.toString().contains('limit')) {
+        errorMessage = 'Arquivo muito grande. Tamanho máximo: 10MB.';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

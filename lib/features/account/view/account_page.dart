@@ -1,16 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/account/view/support_page.dart';
+import 'package:trabalheja/features/auth/view/welcome_page.dart';
 import 'profile_data_page.dart'; // Importar a nova página
 import 'security_password_page.dart'; // Importar a nova página
 import 'faq_page.dart';
 
-class AccountPage extends StatelessWidget {
+class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
+
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  final _supabase = Supabase.instance.client;
+  Map<String, dynamic>? _profileData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final profile = await _supabase
+          .from('profiles')
+          .select('full_name, account_type, profile_picture_url, email')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      print('📋 [AccountPage] Dados do perfil carregados:');
+      print('   - profile: $profile');
+      print('   - full_name: ${profile?['full_name']}');
+      print('   - account_type: ${profile?['account_type']}');
+
+      setState(() {
+        _profileData = profile;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Erro ao carregar dados do perfil: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _getInitials(String? fullName) {
+    if (fullName == null || fullName.trim().isEmpty) return 'U';
+    final parts = fullName.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+    }
+    return fullName[0].toUpperCase();
+  }
+
+  String _getAccountTypeLabel(String? accountType) {
+    if (accountType == null) return 'Usuário';
+    return accountType == 'client' ? 'Cliente' : 'Freelancer';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,53 +82,82 @@ class AccountPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColorsNeutral.neutral0,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: AppSpacing.spacing24),
-              // --- Cabeçalho do Perfil ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing24),
-                child: _buildProfileHeader(),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadProfileData,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: AppSpacing.spacing24),
+                      // --- Cabeçalho do Perfil ---
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing24),
+                        child: _buildProfileHeader(),
+                      ),
+                      const SizedBox(height: AppSpacing.spacing32),
+
+                      // --- Opções de Navegação ---
+                      _buildNavigationList(context),
+
+                      const SizedBox(height: AppSpacing.spacing24),
+
+                      // --- Botão Sair ---
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing24),
+                        child: _buildLogoutButton(context),
+                      ),
+
+                      const SizedBox(height: AppSpacing.spacing32),
+
+                      // --- Links de Suporte ---
+                      _buildSupportLinks(context),
+
+                      const SizedBox(height: AppSpacing.spacing24), // Espaço inferior
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: AppSpacing.spacing32),
-
-              // --- Opções de Navegação ---
-              _buildNavigationList(context),
-
-              const SizedBox(height: AppSpacing.spacing24),
-
-              // --- Botão Sair ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing24),
-                child: _buildLogoutButton(context),
-              ),
-
-              const SizedBox(height: AppSpacing.spacing32),
-
-              // --- Links de Suporte ---
-              _buildSupportLinks(context),
-
-              const SizedBox(height: AppSpacing.spacing24), // Espaço inferior
-            ],
-          ),
-        ),
       ),
     );
   }
 
   Widget _buildProfileHeader() {
+    final fullName = _profileData?['full_name'] as String?;
+    final accountType = _profileData?['account_type'] as String?;
+    final profilePictureUrl = _profileData?['profile_picture_url'] as String?;
+    
+    // Usar o nome completo se disponível, caso contrário usar primeiro nome ou fallback
+    String displayName;
+    if (fullName != null && fullName.trim().isNotEmpty) {
+      // Mostrar nome completo, ou pelo menos o primeiro nome se for muito longo
+      final trimmedName = fullName.trim();
+      displayName = trimmedName.length > 20 
+          ? trimmedName.split(' ').first 
+          : trimmedName;
+    } else {
+      displayName = 'Usuário';
+    }
+    
+    final initials = _getInitials(fullName);
+    final accountTypeLabel = _getAccountTypeLabel(accountType);
+
     return Row(
       children: [
         // Avatar
         CircleAvatar(
           radius: 28,
           backgroundColor: AppColorsPrimary.primary900,
-          child: Text(
-            'JC',
-            style: AppTypography.heading4.copyWith(color: AppColorsNeutral.neutral0),
-          ),
+          backgroundImage: profilePictureUrl != null
+              ? NetworkImage(profilePictureUrl)
+              : null,
+          child: profilePictureUrl == null
+              ? Text(
+                  initials,
+                  style: AppTypography.heading4.copyWith(color: AppColorsNeutral.neutral0),
+                )
+              : null,
         ),
         const SizedBox(width: AppSpacing.spacing12),
         // Nome e Tipo
@@ -77,13 +170,13 @@ class AccountPage extends StatelessWidget {
                 style: AppTypography.captionRegular.copyWith(color: AppColorsNeutral.neutral600),
               ),
               Text(
-                'José Carlos', // TODO: Puxar nome do usuário
+                displayName,
                 style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral900),
               ),
             ],
           ),
         ),
-        // Tag Cliente
+        // Tag Tipo de Conta
         Container(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.spacing12,
@@ -94,7 +187,7 @@ class AccountPage extends StatelessWidget {
             borderRadius: AppRadius.radius6,
           ),
           child: Text(
-            'Cliente', // TODO: Puxar tipo de conta
+            accountTypeLabel,
             style: AppTypography.captionBold.copyWith(color: AppColorsPrimary.primary700),
           ),
         ),
@@ -201,9 +294,22 @@ class AccountPage extends StatelessWidget {
 
  Widget _buildLogoutButton(BuildContext context) {
     return InkWell(
-      onTap: () {
-        // TODO: Implementar lógica de Logout (ex: supabase.auth.signOut())
-        print('Sair da conta');
+      onTap: () async {
+        try {
+          await _supabase.auth.signOut();
+          if (context.mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const WelcomePage()),
+              (route) => false,
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro ao sair: ${e.toString()}')),
+            );
+          }
+        }
       },
       borderRadius: AppRadius.radius12,
       child: Container(

@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
@@ -26,7 +27,9 @@ class FreelancerRadiusPage extends StatefulWidget {
 
 class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
   final Completer<GoogleMapController> _mapController = Completer();
+  final _supabase = Supabase.instance.client;
   String? _selectedRadius = '5km'; // Valor inicial
+  bool _isLoading = false;
 
   final List<DropdownItem<String>> _radiusOptions = [
     DropdownItem(value: '5km', label: 'Até 5km'),
@@ -58,20 +61,58 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
     ),
   };
 
-  void _continue() {
-    print('Raio selecionado: $_selectedRadius');
-    // TODO: Navegar para FreelancerPicturePage passando dados acumulados
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const FreelancerPicturePage(
-            // Passar dados
-            // fullName: widget.fullName,
-            // addressData: widget.addressData,
-            // radius: _selectedRadius,
-            ),
-      ),
-    );
+  Future<void> _continue() async {
+    if (_selectedRadius == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, selecione um raio de atuação.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // Tentar salvar raio de atuação e coordenadas no perfil
+      // Se o perfil não existir ainda (freelancer), ignorar silenciosamente
+      // O perfil será criado apenas no final do processo
+      try {
+        await _supabase.from('profiles').update({
+          'service_radius': _selectedRadius,
+          'service_latitude': _center.latitude,
+          'service_longitude': _center.longitude,
+        }).eq('id', user.id);
+      } catch (e) {
+        // Se o perfil não existir, ignorar (será criado no final)
+        print('ℹ️ [FreelancerRadiusPage] Perfil ainda não existe (será criado no final)');
+      }
+
+      if (!mounted) return;
+
+      // Navegar para FreelancerPicturePage
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const FreelancerPicturePage(),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao salvar raio de atuação: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -160,11 +201,13 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
             // Botão Continuar
             Padding(
               padding: const EdgeInsets.all(AppSpacing.spacing24),
-              child: AppButton.primary(
-                text: 'Continuar',
-                onPressed: _continue,
-                minWidth: double.infinity,
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : AppButton.primary(
+                      text: 'Continuar',
+                      onPressed: _continue,
+                      minWidth: double.infinity,
+                    ),
             ),
           ],
         ),

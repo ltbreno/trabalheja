@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
@@ -15,34 +16,100 @@ class ProfileDataPage extends StatefulWidget {
 }
 
 class _ProfileDataPageState extends State<ProfileDataPage> {
-  final _nameController = TextEditingController(text: 'José Carlos Pereira da Silva Oliveira');
-  final _emailController = TextEditingController(text: 'umemaildojose@gmail.com');
-  final _phoneController = TextEditingController(text: '(00) 00000-0000');
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  bool _isLoadingData = true;
+  String? _profilePictureUrl;
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadProfileData();
   }
 
-  void _saveChanges() {
+  Future<void> _loadProfileData() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _isLoadingData = false;
+        });
+        return;
+      }
+
+      final profile = await _supabase
+          .from('profiles')
+          .select('full_name, email, phone, profile_picture_url')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      setState(() {
+        _nameController.text = profile?['full_name'] as String? ?? '';
+        _emailController.text = profile?['email'] as String? ?? user.email ?? '';
+        _phoneController.text = profile?['phone'] as String? ?? '';
+        _profilePictureUrl = profile?['profile_picture_url'] as String?;
+        _isLoadingData = false;
+      });
+    } catch (e) {
+      print('Erro ao carregar dados do perfil: $e');
+      setState(() {
+        _isLoadingData = false;
+      });
+    }
+  }
+
+  Future<void> _saveChanges() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
-    // TODO: Implementar lógica de atualização de perfil no Supabase
-    // (ex: supabase.auth.updateUser(...) ou supabase.from('profiles').update(...))
-    print('Salvando alterações...');
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dados atualizados com sucesso!')),
-      );
-      Navigator.pop(context);
-    });
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // Atualizar perfil no Supabase
+      await _supabase.from('profiles').update({
+        'full_name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+      }).eq('id', user.id);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dados atualizados com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao atualizar dados: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _getInitials(String? fullName) {
+    if (fullName == null || fullName.trim().isEmpty) return 'U';
+    final parts = fullName.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+    }
+    return fullName[0].toUpperCase();
   }
 
   void _addPhoto() {
@@ -78,24 +145,26 @@ class _ProfileDataPageState extends State<ProfileDataPage> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.spacing24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: AppSpacing.spacing16),
-                Text(
-                  'Meus dados',
-                  style: AppTypography.heading1.copyWith(
-                    color: AppColorsNeutral.neutral900,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.spacing32),
+        child: _isLoadingData
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.spacing24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: AppSpacing.spacing16),
+                      Text(
+                        'Meus dados',
+                        style: AppTypography.heading1.copyWith(
+                          color: AppColorsNeutral.neutral900,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.spacing32),
 
-                // Seção Avatar
-                _buildAvatarSection(),
+                      // Seção Avatar
+                      _buildAvatarSection(),
 
                 const SizedBox(height: AppSpacing.spacing32),
 
@@ -145,6 +214,8 @@ class _ProfileDataPageState extends State<ProfileDataPage> {
   }
 
   Widget _buildAvatarSection() {
+    final initials = _getInitials(_nameController.text);
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.spacing16),
       decoration: BoxDecoration(
@@ -157,10 +228,15 @@ class _ProfileDataPageState extends State<ProfileDataPage> {
           CircleAvatar(
             radius: 28,
             backgroundColor: AppColorsPrimary.primary900,
-            child: Text(
-              'JC',
-              style: AppTypography.heading4.copyWith(color: AppColorsNeutral.neutral0),
-            ),
+            backgroundImage: _profilePictureUrl != null
+                ? NetworkImage(_profilePictureUrl!)
+                : null,
+            child: _profilePictureUrl == null
+                ? Text(
+                    initials,
+                    style: AppTypography.heading4.copyWith(color: AppColorsNeutral.neutral0),
+                  )
+                : null,
           ),
           const SizedBox(width: AppSpacing.spacing16),
           Expanded(

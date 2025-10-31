@@ -1,23 +1,21 @@
 // lib/features/auth/view/freelancer_services_page.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
-import 'package:trabalheja/features/auth/view/freelancer_services_page.dart';
 import 'package:trabalheja/features/auth/view/freelancer_portfolio_page.dart';
 
 class FreelancerServicesPage extends StatefulWidget {
-  // Receber dados das telas anteriores, se necessário (email, tipo de conta, etc.)
-  // final String email;
-  // final String phone;
-  // final AccountType accountType = AccountType.freelancer;
+  final String email;
+  final String phone;
 
   const FreelancerServicesPage({
     super.key,
-    // required this.email,
-    // required this.phone,
+    required this.email,
+    required this.phone,
   });
 
   @override
@@ -28,6 +26,8 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
   final _nameController = TextEditingController();
   final _servicesController = TextEditingController(); // Controller para serviços
   final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -36,25 +36,6 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
     super.dispose();
   }
 
-  void _continue() {
-    if (_formKey.currentState?.validate() ?? false) {
-      final name = _nameController.text;
-      final services = _servicesController.text;
-      print('Nome completo: $name');
-      print('Serviços: $services');
-      // TODO: Navegar para FreelancerPortfolioPage passando os dados acumulados
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const FreelancerServicesPage(
-              // Passar dados como nome, email, serviços...
-              // fullName: name,
-              // services: services,
-              ),
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -122,14 +103,61 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                 const SizedBox(height: AppSpacing.spacing32), // Espaço antes do botão
 
                 // Botão Continuar
-                AppButton(
-                  type: AppButtonType.primary,
-                  text: 'Continuar',
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const FreelancerPortfolioPage()));
-                  },
-                  minWidth: double.infinity,
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : AppButton(
+                        type: AppButtonType.primary,
+                        text: 'Continuar',
+                        onPressed: () async {
+                          if (!(_formKey.currentState?.validate() ?? false)) {
+                            return;
+                          }
+
+                          setState(() => _isLoading = true);
+
+                          try {
+                            final user = _supabase.auth.currentUser;
+                            if (user == null) {
+                              throw Exception('Usuário não autenticado');
+                            }
+
+                            // Tentar salvar nome e serviços no perfil
+                            // Se o perfil não existir ainda (freelancer), ignorar silenciosamente
+                            // O perfil será criado apenas no final do processo
+                            try {
+                              await _supabase.from('profiles').update({
+                                'full_name': _nameController.text.trim(),
+                                'services': _servicesController.text.trim(),
+                              }).eq('id', user.id);
+                            } catch (e) {
+                              // Se o perfil não existir, ignorar (será criado no final)
+                              print('ℹ️ [FreelancerServicesPage] Perfil ainda não existe (será criado no final)');
+                            }
+
+                            if (!mounted) return;
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const FreelancerPortfolioPage(),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Erro ao salvar dados: ${e.toString()}'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isLoading = false);
+                            }
+                          }
+                        },
+                        minWidth: double.infinity,
+                      ),
 
                 const SizedBox(height: AppSpacing.spacing16), // Espaço inferior
               ],

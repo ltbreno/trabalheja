@@ -22,9 +22,15 @@ class AppTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final Color? textColor; // Cor do texto digitado
   final Color? iconColor; // Cor dos ícones (prefixo/sufixo)
+  final Color? labelColor; // Cor do label
+  final double? prefixIconSize; // Tamanho do ícone prefixo
   final int? minLines; // Linhas mínimas para altura variável
   final int? maxLines; // Linhas máximas
-
+  final EdgeInsets? contentPadding; // Padding interno
+  final EdgeInsets? padding; // Padding externo
+  final OutlineInputBorder? border; // Borda
+  final OutlineInputBorder? enabledBorder; // Borda enabled
+  final OutlineInputBorder? focusedBorder; // Borda focused
   const AppTextField({
     super.key,
     required this.label,
@@ -41,9 +47,16 @@ class AppTextField extends StatelessWidget {
     this.inputFormatters,
     this.textColor,
     this.iconColor,
+    this.labelColor,
+    this.prefixIconSize,
     this.minLines,
     this.maxLines,
-  });
+    this.padding,
+    this.contentPadding,
+    this.border,
+    this.enabledBorder,
+    this.focusedBorder,
+    });
 
   @override
   Widget build(BuildContext context) {
@@ -56,11 +69,15 @@ class AppTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral700),
-        ),
-        const SizedBox(height: AppSpacing.spacing4),
+        if (label.isNotEmpty) ...[
+          Text(
+            label,
+            style: AppTypography.captionMedium.copyWith(
+              color: labelColor ?? AppColorsNeutral.neutral700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.spacing4),
+        ],
         TextFormField(
           controller: controller,
           obscureText: obscureText,
@@ -86,8 +103,8 @@ class AppTextField extends StatelessWidget {
                     padding: const EdgeInsets.only(left: AppSpacing.spacing12, right: AppSpacing.spacing8),
                     child: SvgPicture.asset(
                       prefixIconPath!,
-                      height: 20,
-                      width: 20,
+                      height: prefixIconSize ?? 20,
+                      width: prefixIconSize ?? 20,
                       colorFilter: ColorFilter.mode(resolvedIconColor, BlendMode.srcIn),
                     ),
                   )

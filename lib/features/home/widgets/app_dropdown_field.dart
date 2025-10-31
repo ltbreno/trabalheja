@@ -44,11 +44,13 @@ class AppDropdownField<T> extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
        mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral700),
-        ),
-        const SizedBox(height: AppSpacing.spacing4),
+        if (label.isNotEmpty) ...[
+          Text(
+            label,
+            style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral700),
+          ),
+          const SizedBox(height: AppSpacing.spacing4),
+        ],
         DropdownButtonFormField<T>(
           value: selectedValue,
           items: items.map((item) {

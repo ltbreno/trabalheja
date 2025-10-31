@@ -4,10 +4,11 @@ import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/view/home_page.dart';
 import 'package:trabalheja/features/account/view/account_page.dart';
+import 'package:trabalheja/features/proposals/view/proposals_page.dart';
+import 'package:trabalheja/features/chat/view/chat_page.dart';
 
 //TODO: Adicionar as outras telas
 // FreelancersPage(), // 1: Freelancers
-// ChatPage(), // 2: Chat
 
 /// Um "shell" principal para o app que gerencia a navegação
 /// por barra inferior (BottomNavigationBar).
@@ -19,15 +20,15 @@ class MainAppShell extends StatefulWidget {
 }
 
 class _MainAppShellState extends State<MainAppShell> {
-  int _selectedIndex = 3; // Controla o índice da aba selecionada (inicia em Minha conta)
+  int _selectedIndex = 0; // Controla o índice da aba selecionada (inicia em Minha conta)
 
   // Lista de telas que serão exibidas
   static const List<Widget> _pages = <Widget>[
     HomePage(), // 0: Início
-    // 1: Freelancers (placeholder até implementar)
-    Center(child: Text('Freelancers - em breve')),
-    // 2: Chat (placeholder até implementar)
-    Center(child: Text('Chat - em breve')),
+    // 1: Propostas
+    ProposalsPage(),
+    // 2: Chat
+    ChatPage(),
     // 3: Minha conta
     AccountPage(),
   ];
@@ -68,19 +69,19 @@ class _MainAppShellState extends State<MainAppShell> {
             ),
             label: 'Início',
           ),
-          // Item 2: Freelancers
+          // Item 2: Propostas
           BottomNavigationBarItem(
             icon: SvgPicture.asset(
-              'assets/icons/freelancer.svg', // Certifique-se que este SVG existe
+              'assets/icons/document.svg', // Ícone de propostas
               height: 24,
               colorFilter: ColorFilter.mode(_unselectedColor, BlendMode.srcIn),
             ),
             activeIcon: SvgPicture.asset(
-              'assets/icons/freelancer.svg',
+              'assets/icons/document.svg',
               height: 24,
               colorFilter: ColorFilter.mode(_selectedColor, BlendMode.srcIn),
             ),
-            label: 'Freelancers',
+            label: 'Propostas',
           ),
           // Item 3: Chat
           BottomNavigationBarItem(

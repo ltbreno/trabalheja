@@ -6,6 +6,7 @@ import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
+import 'package:trabalheja/core/widgets/MainAppShell.dart';
 
 class OnboardingPage4 extends StatelessWidget {
   const OnboardingPage4({super.key});
@@ -57,6 +58,7 @@ class OnboardingPage4 extends StatelessWidget {
               onPressed: () {
                 // TODO: Ação final -> Navegar para tela de Login/Cadastro
                 print('Botão Continuar final pressionado');
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MainAppShell()));
               },
               minWidth: double.infinity, // Ocupa largura total
               // Remover iconRightPath se não houver ícone no botão final

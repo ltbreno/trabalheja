@@ -1,23 +1,20 @@
 // lib/features/auth/view/address_page.dart
 import 'package:flutter/material.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
-// Importe a tela principal ou de dashboard
-// import 'package:trabalheja/features/home/view/home_page.dart';
+import 'package:trabalheja/core/widgets/MainAppShell.dart';
 
 class AddressPage extends StatefulWidget {
-  // Receber dados das telas anteriores (nome, email, tipo de conta, etc.)
-  // final String fullName;
-  // final AccountType accountType;
+  final String? fullName; // Nome completo vindo da página anterior
 
   const AddressPage({
     super.key,
-    // required this.fullName,
-    // required this.accountType,
+    this.fullName,
   });
 
   @override
@@ -32,6 +29,7 @@ class _AddressPageState extends State<AddressPage> {
   final _complementoController = TextEditingController();
   final _cidadeController = TextEditingController(text: 'São Paulo, SP'); // Pré-preenchido
   final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
   bool _isLoading = false;
 
   // Máscara para CEP
@@ -51,48 +49,92 @@ class _AddressPageState extends State<AddressPage> {
     super.dispose();
   }
 
-  void _continue() async {
+  Future<void> _continue() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final addressData = {
-      'cep': _cepController.text, // ou _cepMaskFormatter.getUnmaskedText()
-      'bairro': _bairroController.text,
-      'rua': _ruaController.text,
-      'numero': _numeroController.text,
-      'complemento': _complementoController.text,
-      'cidade': _cidadeController.text,
-    };
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
 
-    print('Dados de endereço: $addressData');
-    // print('Nome: ${widget.fullName}'); // Exemplo
+      // Preparar dados para atualização - incluir nome e endereço juntos
+      final updateData = <String, dynamic>{
+        'address_cep': _cepController.text.trim(),
+        'address_bairro': _bairroController.text.trim(),
+        'address_rua': _ruaController.text.trim(),
+        'address_numero': _numeroController.text.trim(),
+        'address_complemento': _complementoController.text.trim().isEmpty 
+            ? null 
+            : _complementoController.text.trim(),
+        'address_cidade': _cidadeController.text.trim(),
+      };
 
-    // TODO: Ação final de cadastro/atualização de perfil no Supabase
-    // 1. Criar/atualizar a linha na tabela 'profiles' com todos os dados coletados
-    //    (nome, tipo de conta, endereço, etc.) usando o ID do usuário autenticado.
-    //    Ex: await supabase.from('profiles').update({
-    //          'full_name': widget.fullName,
-    //          'account_type': widget.accountType.name, // Salvar como string
-    //          'address_cep': addressData['cep'],
-    //          // ... outros campos de endereço ...
-    //        }).eq('id', supabase.auth.currentUser!.id);
+      // Incluir o nome no update (se foi passado como parâmetro)
+      // Caso contrário, buscar do perfil atual
+      String? nameToSave = widget.fullName;
+      
+      if (nameToSave == null || nameToSave.trim().isEmpty) {
+        // Se não foi passado, buscar do perfil atual
+        final profile = await _supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+        
+        if (profile != null && profile['full_name'] != null) {
+          nameToSave = profile['full_name'].toString();
+        }
+      }
 
-    // Simulando sucesso após um tempo
-    await Future.delayed(const Duration(seconds: 1));
+      // Se temos um nome válido, incluir no update
+      if (nameToSave != null && nameToSave.trim().isNotEmpty) {
+        updateData['full_name'] = nameToSave.trim();
+      }
 
-    if (mounted) {
-       setState(() => _isLoading = false);
-      // TODO: Navegar para a tela principal/dashboard do app
-      // Navigator.of(context).pushAndRemoveUntil(
-      //   MaterialPageRoute(builder: (context) => const HomePage()), // Exemplo
-      //   (route) => false, // Remove todas as rotas anteriores
-      // );
-       ScaffoldMessenger.of(context).showSnackBar(
+      // Debug: mostrar o que será enviado
+      print('📤 [AddressPage] Enviando UPDATE para Supabase:');
+      print('   - address_cep: ${updateData['address_cep']}');
+      print('   - address_bairro: ${updateData['address_bairro']}');
+      print('   - address_rua: ${updateData['address_rua']}');
+      print('   - address_numero: ${updateData['address_numero']}');
+      print('   - address_complemento: ${updateData['address_complemento'] ?? 'null'}');
+      print('   - address_cidade: ${updateData['address_cidade']}');
+      print('   - full_name: ${updateData['full_name'] ?? 'não incluído'}');
+      print('   - user.id: ${user.id}');
+
+      // Atualizar perfil com endereço (UPDATE - o perfil já existe)
+      await _supabase.from('profiles').update(updateData).eq('id', user.id);
+
+      print('✅ [AddressPage] Dados atualizados com sucesso!');
+
+      if (!mounted) return;
+
+      // Navegar para a tela principal do app (MainAppShell)
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const MainAppShell()),
+        (route) => false, // Remove todas as rotas anteriores
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cadastro concluído!')),
-       );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao salvar endereço: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

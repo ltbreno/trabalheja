@@ -1,6 +1,7 @@
 // lib/features/auth/view/select_account_type_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
@@ -13,16 +14,13 @@ import 'package:trabalheja/features/auth/view/freelancer_services_page.dart';
 enum AccountType { none, client, freelancer }
 
 class SelectAccountTypePage extends StatefulWidget {
-  // Receber dados das telas anteriores, se necessário
-  // final String email;
-  // final String phone;
-  // final String password;
+  final String email;
+  final String phone;
 
   const SelectAccountTypePage({
     super.key,
-    // required this.email,
-    // required this.phone,
-    // required this.password,
+    required this.email,
+    required this.phone,
   });
 
   @override
@@ -31,8 +29,10 @@ class SelectAccountTypePage extends StatefulWidget {
 
 class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
   AccountType _selectedAccountType = AccountType.none; // Estado para seleção
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
 
-  void _createAccount() {
+  Future<void> _createAccount() async {
     if (_selectedAccountType == AccountType.none) {
       // Mostrar mensagem pedindo para selecionar um tipo
       ScaffoldMessenger.of(context).showSnackBar(
@@ -41,33 +41,142 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
       return;
     }
 
-    print('Tipo de conta selecionado: $_selectedAccountType');
-    
-    // Redirecionar para a página apropriada baseado no tipo de conta
-    if (_selectedAccountType == AccountType.client) {
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // Validar dados
+      if (widget.email.trim().isEmpty) {
+        throw Exception('Email não pode estar vazio');
+      }
+      if (widget.phone.trim().isEmpty) {
+        throw Exception('Telefone não pode estar vazio');
+      }
+
+      // Lógica diferente para cliente e freelancer:
+      // - CLIENTE: Cria o perfil aqui (INSERT)
+      // - FREELANCER: Não cria o perfil aqui, será criado no final do processo
+      if (_selectedAccountType == AccountType.client) {
+        // Criar perfil para CLIENTE
+        final insertData = <String, dynamic>{
+          'id': user.id,
+          'account_type': 'client',
+          'email': widget.email.trim(),
+          'phone': widget.phone.trim(),
+        };
+
+        // Debug: mostrar o que será enviado
+        print('📤 [SelectAccountTypePage] Criando perfil CLIENTE no Supabase:');
+        print('   - id: ${insertData['id']}');
+        print('   - account_type: ${insertData['account_type']}');
+        print('   - email: ${insertData['email']}');
+        print('   - phone: ${insertData['phone']}');
+
+        // Criar o perfil pela primeira vez (INSERT)
+        // Se já existir, fazer UPDATE (caso o usuário volte nessa tela)
+        try {
+          await _supabase.from('profiles').insert(insertData);
+          print('✅ [SelectAccountTypePage] Perfil CLIENTE criado com sucesso!');
+        } catch (insertError) {
+          // Log detalhado do erro para debug
+          print('❌ [SelectAccountTypePage] Erro ao criar perfil: $insertError');
+          if (insertError is PostgrestException) {
+            print('   - Message: ${insertError.message}');
+            print('   - Details: ${insertError.details}');
+            print('   - Hint: ${insertError.hint}');
+            print('   - Code: ${insertError.code}');
+          }
+          
+          // Se o perfil já existir, fazer UPDATE
+          final errorStr = insertError.toString().toLowerCase();
+          if (errorStr.contains('duplicate') || 
+              errorStr.contains('unique') ||
+              errorStr.contains('already exists') ||
+              (insertError is PostgrestException && insertError.code == '23505')) {
+            print('⚠️ [SelectAccountTypePage] Perfil já existe, fazendo UPDATE...');
+            await _supabase.from('profiles').update({
+              'account_type': insertData['account_type'],
+              'email': insertData['email'],
+              'phone': insertData['phone'],
+            }).eq('id', user.id);
+            print('✅ [SelectAccountTypePage] Perfil atualizado com sucesso!');
+          } else {
+            // Outro tipo de erro, re-lançar com mais informações
+            print('❌ [SelectAccountTypePage] Erro não tratado, re-lançando...');
+            rethrow;
+          }
+        }
+      } else {
+        // FREELANCER: Não cria o perfil aqui
+        // O perfil será criado apenas no final do processo (FreelancerPicturePage)
+        // após todas as informações serem coletadas (incluindo lat/lon)
+        print('ℹ️ [SelectAccountTypePage] FREELANCER selecionado - perfil será criado no final do processo');
+      }
+
+      if (!mounted) return;
+
+      // Redirecionar para a página apropriada baseado no tipo de conta
+      if (_selectedAccountType == AccountType.client) {
       // Se for cliente, vai para a página de nome completo
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const CompleteNamePage(
-            // Passar dados como email, phone, etc. se necessário
-            // email: widget.email,
-            // phone: widget.phone,
+          builder: (context) => CompleteNamePage(
+            email: widget.email,
+            phone: widget.phone,
           ),
         ),
       );
-    } else if (_selectedAccountType == AccountType.freelancer) {
-      // Se for freelancer, vai para a página de serviços
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const FreelancerServicesPage(
-            // Passar dados como email, phone, etc. se necessário
-            // email: widget.email,
-            // phone: widget.phone,
+      } else if (_selectedAccountType == AccountType.freelancer) {
+        // Se for freelancer, vai para a página de serviços
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FreelancerServicesPage(
+              email: widget.email,
+              phone: widget.phone,
+            ),
           ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Capturar mensagem de erro mais detalhada
+      String errorMessage = 'Erro ao salvar tipo de conta.';
+      if (e is PostgrestException) {
+        errorMessage = e.message;
+        if (e.details != null) {
+          final detailsStr = e.details.toString();
+          if (detailsStr.isNotEmpty) {
+            errorMessage += '\nDetalhes: $detailsStr';
+          }
+        }
+        if (e.hint != null) {
+          final hintStr = e.hint.toString();
+          if (hintStr.isNotEmpty) {
+            errorMessage += '\nDica: $hintStr';
+          }
+        }
+      } else {
+        errorMessage = e.toString();
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -133,11 +242,13 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
               const Spacer(), // Empurra o botão para baixo
 
               // Botão Criar minha conta
-              AppButton.primary(
-                text: 'Criar minha conta',
-                onPressed: _createAccount, // Chama a função de criação
-                minWidth: double.infinity,
-              ),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : AppButton.primary(
+                      text: 'Criar minha conta',
+                      onPressed: _createAccount, // Chama a função de criação
+                      minWidth: double.infinity,
+                    ),
               const SizedBox(height: AppSpacing.spacing16), // Espaço inferior
             ],
           ),

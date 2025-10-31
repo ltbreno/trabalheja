@@ -1,6 +1,7 @@
 // lib/features/auth/view/freelancer_address_page.dart
 import 'package:flutter/material.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
@@ -31,6 +32,8 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
   final _complementoController = TextEditingController();
   final _cidadeController = TextEditingController(text: 'São Paulo, SP'); // Pré-preenchido
   final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
 
   // Máscara para CEP
   final _cepMaskFormatter = MaskTextInputFormatter(
@@ -49,37 +52,60 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
     super.dispose();
   }
 
-  void _continue() {
+  Future<void> _continue() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
-    final addressData = {
-      'cep': _cepController.text, // ou _cepMaskFormatter.getUnmaskedText()
-      'bairro': _bairroController.text,
-      'rua': _ruaController.text,
-      'numero': _numeroController.text,
-      'complemento': _complementoController.text,
-      'cidade': _cidadeController.text,
-    };
+    setState(() => _isLoading = true);
 
-    print('Dados de endereço: $addressData');
-    // print('Nome: ${widget.fullName}'); // Exemplo
-    
-    // TODO: Armazenar os dados temporariamente ou passar para as próximas telas
-    // TODO: Fazer a chamada de API no final do fluxo de cadastro
-    
-    // Navegar para a página de raio de atuação do freelancer
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const FreelancerRadiusPage(
-          // Passar dados se necessário:
-          // fullName: widget.fullName,
-          // addressData: addressData,
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // Tentar salvar endereço no perfil
+      // Se o perfil não existir ainda (freelancer), ignorar silenciosamente
+      // O perfil será criado apenas no final do processo
+      try {
+        await _supabase.from('profiles').update({
+          'address_cep': _cepController.text.trim(),
+          'address_bairro': _bairroController.text.trim(),
+          'address_rua': _ruaController.text.trim(),
+          'address_numero': _numeroController.text.trim(),
+          'address_complemento': _complementoController.text.trim().isEmpty 
+              ? null 
+              : _complementoController.text.trim(),
+          'address_cidade': _cidadeController.text.trim(),
+        }).eq('id', user.id);
+      } catch (e) {
+        // Se o perfil não existir, ignorar (será criado no final)
+        print('ℹ️ [FreelancerAddressPage] Perfil ainda não existe (será criado no final)');
+      }
+
+      if (!mounted) return;
+      
+      // Navegar para a página de raio de atuação do freelancer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const FreelancerRadiusPage(),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao salvar endereço: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
 
@@ -211,11 +237,13 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
                 const SizedBox(height: AppSpacing.spacing32),
 
                 // Botão Continuar
-                AppButton.primary(
-                  text: 'Continuar',
-                  onPressed: _continue,
-                  minWidth: double.infinity,
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : AppButton.primary(
+                        text: 'Continuar',
+                        onPressed: _continue,
+                        minWidth: double.infinity,
+                      ),
 
                 const SizedBox(height: AppSpacing.spacing16), // Espaço inferior
               ],

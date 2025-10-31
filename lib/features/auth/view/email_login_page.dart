@@ -1,12 +1,13 @@
 // lib/features/auth/view/email_login_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
-import 'package:trabalheja/features/onboarding/view/onboarding_page.dart';
+import 'package:trabalheja/core/widgets/MainAppShell.dart';
 
 class EmailLoginPage extends StatefulWidget { // Alterado para StatefulWidget
   const EmailLoginPage({super.key});
@@ -20,12 +21,94 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>(); // Chave para o formulário
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    // Validar o formulário antes de prosseguir
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
+      // Fazer login no Supabase
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      if (response.user != null) {
+        // Login bem-sucedido - o app.dart detectará a mudança de estado
+        // e navegará automaticamente para MainAppShell
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MainAppShell()),
+          (route) => false, // Remove todas as rotas anteriores
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao fazer login. Tente novamente.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      if (!mounted) return;
+
+      // Tratar erros específicos do Supabase
+      String errorMessage = 'Erro ao fazer login.';
+      final message = e.message.toLowerCase();
+      
+      if (message.contains('invalid login credentials') ||
+          (message.contains('invalid') && message.contains('credentials'))) {
+        errorMessage = 'Email ou senha incorretos.';
+      } else if (message.contains('email not confirmed') ||
+                 message.contains('email_not_confirmed') ||
+                 message.contains('unconfirmed email')) {
+        errorMessage = 'Por favor, confirme seu email antes de fazer login.';
+      } else if (message.contains('too many requests') ||
+                 message.contains('rate limit')) {
+        errorMessage = 'Muitas tentativas. Aguarde alguns instantes e tente novamente.';
+      } else {
+        // Usar a mensagem do erro ou uma mensagem genérica
+        errorMessage = e.message.isNotEmpty ? e.message : 'Erro ao fazer login. Tente novamente.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao fazer login: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
 
@@ -117,21 +200,13 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
                 const SizedBox(height: AppSpacing.spacing32), // Espaço antes do botão Entrar
 
                 // Botão Entrar
-                AppButton.primary(
-                  text: 'Entrar',
-                  onPressed: () {
-                    // Validar o formulário antes de prosseguir
-                    if (_formKey.currentState?.validate() ?? false) {
-                       // Se o formulário for válido, execute a lógica de login
-                       String email = _emailController.text;
-                       String password = _passwordController.text;
-                       print('Email: $email, Senha: $password');
-                       // TODO: Implementar lógica de autenticação
-                       Navigator.push(context, MaterialPageRoute(builder: (context) => const OnboardingPage()));
-                    }
-                  },
-                  minWidth: double.infinity,
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : AppButton.primary(
+                        text: 'Entrar',
+                        onPressed: _handleLogin,
+                        minWidth: double.infinity,
+                      ),
 
                 const SizedBox(height: AppSpacing.spacing16), // Espaço antes do link
 

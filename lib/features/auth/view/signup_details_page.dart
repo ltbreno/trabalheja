@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';   
 import 'package:flutter/services.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
@@ -23,8 +24,10 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false;
 
   // Máscara para telefone (ajuste conforme necessário para seu país)
   final _phoneMaskFormatter = MaskTextInputFormatter(
@@ -40,33 +43,87 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
     super.dispose();
   }
 
-  void _continue() {
+  Future<void> _continue() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
-    final phone = _phoneController.text;
-    final password = _passwordController.text;
-    
-    print('Email: ${widget.email}');
-    print('Telefone: $phone');
-    print('Senha: $password');
-    
-    // TODO: Armazenar os dados temporariamente ou passar para as próximas telas
-    // TODO: Fazer a chamada de API no final do fluxo de cadastro
-    
-    // Navegar para a página de seleção de tipo de conta
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SelectAccountTypePage(
-          // Passar dados se necessário:
-          // email: widget.email,
-          // phone: phone,
-          // password: password,
+    setState(() => _isLoading = true);
+
+    try {
+      final phone = _phoneController.text;
+      final password = _passwordController.text;
+      
+      // Criar conta no Supabase
+      final response = await _supabase.auth.signUp(
+        email: widget.email,
+        password: password,
+        data: {
+          'phone': phone, // Salvar telefone nos metadados do usuário
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.user != null) {
+        // Conta criada com sucesso
+        // O perfil será criado apenas após o usuário selecionar o account_type
+        // Isso é necessário porque a política RLS exige account_type no INSERT
+        
+        if (!mounted) return;
+        
+        // Navegar para a página de seleção de tipo de conta
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SelectAccountTypePage(
+              email: widget.email,
+              phone: phone,
+            ),
+          ),
+        );
+      } else {
+        // Erro ao criar conta
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao criar conta. Tente novamente.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      
+      // Tratar erros específicos do Supabase
+      String errorMessage = 'Erro ao criar conta.';
+      if (e.message.contains('already registered')) {
+        errorMessage = 'Este email já está cadastrado.';
+      } else if (e.message.contains('invalid')) {
+        errorMessage = 'Email ou senha inválidos.';
+      } else {
+        errorMessage = e.message;
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao criar conta: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
 
@@ -181,11 +238,13 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                 const SizedBox(height: AppSpacing.spacing32),
 
                 // Botão Continuar
-                AppButton.primary(
-                  text: 'Continuar',
-                  onPressed: _continue,
-                  minWidth: double.infinity,
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : AppButton.primary(
+                        text: 'Continuar',
+                        onPressed: _continue,
+                        minWidth: double.infinity,
+                      ),
                 const SizedBox(height: AppSpacing.spacing16),
               ],
             ),

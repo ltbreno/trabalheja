@@ -1,5 +1,6 @@
 // lib/features/auth/view/complete_name_page.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
@@ -9,12 +10,13 @@ import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'address_page.dart';
 
 class CompleteNamePage extends StatefulWidget {
-  // Receber dados das telas anteriores, se necessário (email, tipo de conta, etc.)
-  // final AccountType accountType;
+  final String email;
+  final String phone;
 
   const CompleteNamePage({
     super.key,
-    // required this.accountType,
+    required this.email,
+    required this.phone,
   });
 
   @override
@@ -24,6 +26,8 @@ class CompleteNamePage extends StatefulWidget {
 class _CompleteNamePageState extends State<CompleteNamePage> {
   final _nameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -31,21 +35,61 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
     super.dispose();
   }
 
-  void _continue() {
-    if (_formKey.currentState?.validate() ?? false) {
-      final name = _nameController.text;
-      print('Nome completo: $name');
-      // TODO: Navegar para AddressPage passando os dados acumulados
+  Future<void> _continue() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final name = _nameController.text.trim();
+      final user = _supabase.auth.currentUser;
+      
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // Preparar dados para atualização
+      final updateData = <String, dynamic>{
+        'full_name': name,
+        'email': widget.email,
+        'phone': widget.phone,
+      };
+
+      // Debug: mostrar o que será enviado
+      print('📤 [CompleteNamePage] Enviando UPDATE para Supabase:');
+      print('   - full_name: ${updateData['full_name']}');
+      print('   - email: ${updateData['email']}');
+      print('   - phone: ${updateData['phone']}');
+      print('   - user.id: ${user.id}');
+
+      // Atualizar perfil (UPDATE - o perfil já existe pois foi criado na página anterior)
+      await _supabase.from('profiles').update(updateData).eq('id', user.id);
+
+      print('✅ [CompleteNamePage] Dados atualizados com sucesso!');
+
+      if (!mounted) return;
+
+      // Navegar para AddressPage passando o nome
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const AddressPage(
-                // Passar dados como nome, email, tipo de conta...
-              // fullName: name,
-              // accountType: widget.accountType,
-              ),
+          builder: (context) => AddressPage(fullName: name),
         ),
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao salvar nome: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -108,11 +152,13 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
                 const SizedBox(height: AppSpacing.spacing32), // Espaço antes do botão
 
                 // Botão Continuar
-                AppButton.primary(
-                  text: 'Continuar',
-                  onPressed: _continue,
-                  minWidth: double.infinity,
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : AppButton.primary(
+                        text: 'Continuar',
+                        onPressed: _continue,
+                        minWidth: double.infinity,
+                      ),
 
                 const SizedBox(height: AppSpacing.spacing16), // Espaço inferior
               ],
