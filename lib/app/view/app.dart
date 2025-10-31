@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
-import 'package:trabalheja/features/auth/view/welcome_page.dart';
-
+import 'package:trabalheja/core/widgets/MainAppShell.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -64,7 +63,7 @@ class App extends StatelessWidget {
         ),
         textTheme: _buildTextTheme(baseTheme.textTheme),
       ),
-      home: const WelcomePage(),
+      home: const MainAppShell(),
     );
   }
 }

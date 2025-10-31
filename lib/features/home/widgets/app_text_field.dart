@@ -20,6 +20,10 @@ class AppTextField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final FocusNode? focusNode;
   final List<TextInputFormatter>? inputFormatters;
+  final Color? textColor; // Cor do texto digitado
+  final Color? iconColor; // Cor dos ícones (prefixo/sufixo)
+  final int? minLines; // Linhas mínimas para altura variável
+  final int? maxLines; // Linhas máximas
 
   const AppTextField({
     super.key,
@@ -35,11 +39,15 @@ class AppTextField extends StatelessWidget {
     this.onChanged,
     this.focusNode,
     this.inputFormatters,
+    this.textColor,
+    this.iconColor,
+    this.minLines,
+    this.maxLines,
   });
 
   @override
   Widget build(BuildContext context) {
-    final Color iconColor = AppColorsNeutral.neutral500;
+    final Color resolvedIconColor = iconColor ?? AppColorsNeutral.neutral500;
     final Color borderColor = AppColorsNeutral.neutral300;
     final Color focusedBorderColor = AppColorsPrimary.primary500;
     final Color fillColor = AppColorsNeutral.neutral50;
@@ -61,7 +69,9 @@ class AppTextField extends StatelessWidget {
           onChanged: onChanged,
           focusNode: focusNode,
           inputFormatters: inputFormatters,
-          style: AppTypography.contentRegular.copyWith(color: AppColorsNeutral.neutral900), // Estilo do texto digitado
+          minLines: minLines,
+          maxLines: obscureText ? 1 : maxLines,
+          style: AppTypography.contentRegular.copyWith(color: textColor ?? AppColorsNeutral.neutral900), // Estilo do texto digitado
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.contentRegular.copyWith(color: AppColorsNeutral.neutral400), // Estilo do placeholder
@@ -78,7 +88,7 @@ class AppTextField extends StatelessWidget {
                       prefixIconPath!,
                       height: 20,
                       width: 20,
-                      colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+                      colorFilter: ColorFilter.mode(resolvedIconColor, BlendMode.srcIn),
                     ),
                   )
                 : null,
@@ -93,7 +103,7 @@ class AppTextField extends StatelessWidget {
                          suffixIconPath!,
                          height: 20,
                          width: 20,
-                         colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+                          colorFilter: ColorFilter.mode(resolvedIconColor, BlendMode.srcIn),
                        ),
                      ),
                    )

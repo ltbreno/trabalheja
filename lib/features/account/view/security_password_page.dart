@@ -82,7 +82,7 @@ class _SecurityPasswordPageState extends State<SecurityPasswordPage> {
                 Text(
                   'Segurança e senha',
                   style: AppTypography.heading1.copyWith(
-                    color: AppColorsNeutral.neutral900,
+                    color: AppColorsPrimary.primary900,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.spacing32),
@@ -96,6 +96,8 @@ class _SecurityPasswordPageState extends State<SecurityPasswordPage> {
                   prefixIconPath: 'assets/icons/lock.svg',
                   suffixIconPath: _isCurrentVisible ? 'assets/icons/eye_off.svg' : 'assets/icons/eye.svg',
                   onSuffixIconTap: () => setState(() => _isCurrentVisible = !_isCurrentVisible),
+                  textColor: AppColorsPrimary.primary900,
+                  iconColor: AppColorsPrimary.primary800,
                   validator: (value) {
                      if (value == null || value.isEmpty) return 'Informe sua senha atual';
                      return null;
@@ -112,6 +114,8 @@ class _SecurityPasswordPageState extends State<SecurityPasswordPage> {
                   prefixIconPath: 'assets/icons/lock.svg',
                   suffixIconPath: _isNewVisible ? 'assets/icons/eye_off.svg' : 'assets/icons/eye.svg',
                   onSuffixIconTap: () => setState(() => _isNewVisible = !_isNewVisible),
+                  textColor: AppColorsPrimary.primary900,
+                  iconColor: AppColorsPrimary.primary800,
                    validator: (value) {
                     if (value == null || value.length < 6) return 'A senha deve ter pelo menos 6 caracteres';
                     return null;
@@ -128,6 +132,8 @@ class _SecurityPasswordPageState extends State<SecurityPasswordPage> {
                   prefixIconPath: 'assets/icons/lock.svg',
                    suffixIconPath: _isConfirmVisible ? 'assets/icons/eye_off.svg' : 'assets/icons/eye.svg',
                   onSuffixIconTap: () => setState(() => _isConfirmVisible = !_isConfirmVisible),
+                  textColor: AppColorsPrimary.primary900,
+                  iconColor: AppColorsPrimary.primary800,
                    validator: (value) {
                     if (value == null || value.isEmpty) return 'Confirme sua nova senha';
                     if (value != _newPasswordController.text) return 'As senhas não coincidem';

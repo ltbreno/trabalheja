@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
+import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
@@ -144,48 +145,74 @@ class _ProfileDataPageState extends State<ProfileDataPage> {
   }
 
   Widget _buildAvatarSection() {
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 40,
-          backgroundColor: AppColorsPrimary.primary900,
-          child: Text(
-            'JC',
-            style: AppTypography.heading2.copyWith(color: AppColorsNeutral.neutral0),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.spacing16),
+      decoration: BoxDecoration(
+        color: AppColorsPrimary.primary100,
+        borderRadius: AppRadius.radius12,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColorsPrimary.primary900,
+            child: Text(
+              'JC',
+              style: AppTypography.heading4.copyWith(color: AppColorsNeutral.neutral0),
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.spacing16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextButton.icon(
-              icon: SvgPicture.asset(
-                'assets/icons/camera.svg', // Use o ícone correto
-                height: 18,
-                colorFilter: ColorFilter.mode(AppColorsPrimary.primary900, BlendMode.srcIn),
-              ),
-              label: Text(
-                'Adicionar foto de perfil',
-                style: AppTypography.captionMedium.copyWith(color: AppColorsPrimary.primary900),
-              ),
-              onPressed: _addPhoto,
+          const SizedBox(width: AppSpacing.spacing16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: SvgPicture.asset(
+                    'assets/icons/camera.svg',
+                    height: 18,
+                    colorFilter: ColorFilter.mode(AppColorsPrimary.primary900, BlendMode.srcIn),
+                  ),
+                  label: Text(
+                    'Adicionar foto de perfil',
+                    style: AppTypography.captionMedium.copyWith(
+                      color: AppColorsPrimary.primary900,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  onPressed: _addPhoto,
+                ),
+                const SizedBox(height: AppSpacing.spacing12),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: SvgPicture.asset(
+                    'assets/icons/trash.svg',
+                    height: 18,
+                    colorFilter: ColorFilter.mode(AppColorsNeutral.neutral700, BlendMode.srcIn),
+                  ),
+                  label: Text(
+                    'Remover',
+                    style: AppTypography.captionMedium.copyWith(
+                      color: AppColorsNeutral.neutral700,
+                    ),
+                  ),
+                  onPressed: _removePhoto,
+                ),
+              ],
             ),
-            const SizedBox(width: AppSpacing.spacing16),
-            TextButton.icon(
-              icon: SvgPicture.asset(
-                'assets/icons/trash.svg', // Use o ícone correto
-                height: 18,
-                colorFilter: ColorFilter.mode(AppColorsNeutral.neutral700, BlendMode.srcIn),
-              ),
-              label: Text(
-                'Remover',
-                 style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral700),
-              ),
-              onPressed: _removePhoto,
-            ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }

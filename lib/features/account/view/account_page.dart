@@ -4,8 +4,10 @@ import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/features/account/view/support_page.dart';
 import 'profile_data_page.dart'; // Importar a nova página
 import 'security_password_page.dart'; // Importar a nova página
+import 'faq_page.dart';
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
@@ -120,7 +122,6 @@ class AccountPage extends StatelessWidget {
                 );
               },
             ),
-            _buildDivider(),
             _buildListTile(
               context: context,
               iconPath: 'assets/icons/lock.svg',
@@ -132,28 +133,24 @@ class AccountPage extends StatelessWidget {
                  );
                },
             ),
-             _buildDivider(),
             _buildListTile( 
               context: context,
               iconPath: 'assets/icons/credit_card.svg', // Use o ícone correto
               title: 'Formas de pagamento',
               onTap: () { /* TODO: Navegar */ },
             ),
-             _buildDivider(),
             _buildListTile(
               context: context,
               iconPath: 'assets/icons/location_pin.svg', // Use o ícone correto
               title: 'Endereços',
               onTap: () { /* TODO: Navegar */ },
             ),
-             _buildDivider(),
             _buildListTile(
               context: context,
               iconPath: 'assets/icons/document.svg', // Use o ícone correto
               title: 'Termos de uso',
               onTap: () { /* TODO: Navegar */ },
             ),
-             _buildDivider(),
             _buildListTile(
               context: context,
               iconPath: 'assets/icons/policy.svg', // Use o ícone correto
@@ -172,35 +169,35 @@ class AccountPage extends StatelessWidget {
     required String title,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      leading: SvgPicture.asset(
-        iconPath,
-        height: 22,
-        width: 22,
-        colorFilter: ColorFilter.mode(AppColorsPrimary.primary800, BlendMode.srcIn),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.spacing8),
+      decoration: BoxDecoration(
+        color: AppColorsPrimary.primary100,
+        borderRadius: AppRadius.radius12,
       ),
-      title: Text(
-        title,
-        style: AppTypography.contentMedium.copyWith(color: AppColorsPrimary.primary950),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.radius12),
+        leading: SvgPicture.asset(
+          iconPath,
+          height: 22,
+          width: 22,
+          colorFilter: ColorFilter.mode(AppColorsPrimary.primary800, BlendMode.srcIn),
+        ),
+        title: Text(
+          title,
+          style: AppTypography.contentMedium.copyWith(color: AppColorsPrimary.primary950),
+        ),
+        trailing: SvgPicture.asset(
+          'assets/icons/arrow_forward.svg', // Ícone de seta
+          height: 20,
+          colorFilter: ColorFilter.mode(AppColorsNeutral.neutral500, BlendMode.srcIn),
+        ),
+        onTap: onTap,
       ),
-      trailing: SvgPicture.asset(
-        'assets/icons/arrow_forward.svg', // Ícone de seta
-        height: 20,
-        colorFilter: ColorFilter.mode(AppColorsNeutral.neutral500, BlendMode.srcIn),
-      ),
-      onTap: onTap,
     );
   }
 
-  Widget _buildDivider() {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      color: AppColorsNeutral.neutral100,
-      indent: AppSpacing.spacing16,
-      endIndent: AppSpacing.spacing16,
-    );
-  }
+  
 
  Widget _buildLogoutButton(BuildContext context) {
     return InkWell(
@@ -218,24 +215,13 @@ class AccountPage extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SvgPicture.asset(
-                  'assets/icons/exit.svg',
-                  height: 22,
-                ),
-                const SizedBox(width: AppSpacing.spacing8),
-                Text(
-                  'Sair da conta',
-                  style: AppTypography.contentMedium.copyWith(color: AppColorsError.error700),
-                ),
-              ],
+            Text(
+              'Sair da conta',
+              style: AppTypography.contentMedium.copyWith(color: AppColorsError.error700),
             ),
             SvgPicture.asset(
-              'assets/icons/logout.svg',
+              'assets/icons/exit.svg',
               height: 22,
-              colorFilter: ColorFilter.mode(AppColorsError.error700, BlendMode.srcIn),
             ),
           ],
         ),
@@ -249,27 +235,32 @@ class AccountPage extends StatelessWidget {
       children: [
         TextButton.icon(
           icon: SvgPicture.asset(
-            'assets/icons/support.svg', // Use o ícone correto
+            'assets/icons/chat.svg', // Ícone de chat à esquerda
             height: 18,
-            colorFilter: ColorFilter.mode(AppColorsNeutral.neutral700, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(AppColorsPrimary.primary800, BlendMode.srcIn),
           ),
           label: Text(
             'Falar com suporte',
-            style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral700),
+            style: AppTypography.captionMedium.copyWith(color: AppColorsPrimary.primary950),
           ),
-          onPressed: () { /* TODO: Abrir link/chat suporte */ },
+          onPressed:
+          () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const SupportPage()));
+          }
         ),
         TextButton.icon(
           icon: SvgPicture.asset(
-            'assets/icons/help.svg', // Use o ícone correto
+            'assets/icons/chat.svg', // Ícone de chat à esquerda
             height: 18,
-            colorFilter: ColorFilter.mode(AppColorsNeutral.neutral700, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(AppColorsPrimary.primary800, BlendMode.srcIn),
           ),
           label: Text(
             'Dúvidas frequentes',
-            style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral700),
+            style: AppTypography.captionMedium.copyWith(color: AppColorsPrimary.primary950),
           ),
-          onPressed: () { /* TODO: Abrir link/FAQ */ },
+          onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const FaqPage()));
+          }
         ),
       ],
     );
