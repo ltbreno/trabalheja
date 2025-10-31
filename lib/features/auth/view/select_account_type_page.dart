@@ -6,6 +6,8 @@ import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
+import 'package:trabalheja/features/auth/view/complete_name_page.dart';
+import 'package:trabalheja/features/auth/view/freelancer_services_page.dart';
 
 // Enum para representar os tipos de conta
 enum AccountType { none, client, freelancer }
@@ -40,10 +42,33 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
     }
 
     print('Tipo de conta selecionado: $_selectedAccountType');
-    // print('Email: ${widget.email}'); // Exemplo se receber dados
-    // TODO: Chamar a função final de cadastro no Supabase, passando todos os dados
-    // incluindo o tipo de conta (talvez como metadata ou em 'profiles')
-    // Ex: _performFinalSignUp(widget.email, widget.password, widget.phone, _selectedAccountType);
+    
+    // Redirecionar para a página apropriada baseado no tipo de conta
+    if (_selectedAccountType == AccountType.client) {
+      // Se for cliente, vai para a página de nome completo
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const CompleteNamePage(
+            // Passar dados como email, phone, etc. se necessário
+            // email: widget.email,
+            // phone: widget.phone,
+          ),
+        ),
+      );
+    } else if (_selectedAccountType == AccountType.freelancer) {
+      // Se for freelancer, vai para a página de serviços
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const FreelancerServicesPage(
+            // Passar dados como email, phone, etc. se necessário
+            // email: widget.email,
+            // phone: widget.phone,
+          ),
+        ),
+      );
+    }
   }
 
   @override

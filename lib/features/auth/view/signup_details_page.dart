@@ -1,13 +1,13 @@
 // lib/features/auth/view/signup_details_page.dart
 import 'package:flutter/material.dart';   
 import 'package:flutter/services.dart';
-import 'package:mask_text_input_formatter/mask_text_input_formatter.dart'; // Importar máscara
-import 'package:supabase_flutter/supabase_flutter.dart'; // Importar Supabase
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
+import 'package:trabalheja/features/auth/view/select_account_type_page.dart';
 
 class SignUpDetailsPage extends StatefulWidget {
   final String email; // Recebe o e-mail da tela anterior
@@ -25,7 +25,6 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
-  bool _isLoading = false;
 
   // Máscara para telefone (ajuste conforme necessário para seu país)
   final _phoneMaskFormatter = MaskTextInputFormatter(
@@ -41,70 +40,33 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
     super.dispose();
   }
 
-  Future<void> _signUp() async {
+  void _continue() {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
-    setState(() => _isLoading = true);
-
-    final phone = _phoneController.text; // Ou use _phoneMaskFormatter.getUnmaskedText()
+    final phone = _phoneController.text;
     final password = _passwordController.text;
-
-    try {
-      // Usa o email recebido e a senha digitada
-      final AuthResponse res = await Supabase.instance.client.auth.signUp(
-        email: widget.email, // Usa o e-mail da tela anterior
-        password: password,
-        // Adiciona o telefone aos metadados do usuário (opcional)
-        // Certifique-se que 'phone' está habilitado nos User Metadata no Supabase Auth Settings
-        data: {'phone': phone},
-      );
-
-       if (!mounted) return;
-
-       // Verificar se precisa de confirmação de e-mail (config Supabase)
-       final session = res.session;
-       final user = res.user;
-
-       if (user != null) {
-          if (session != null) {
-              // Login automático após cadastro (sem confirmação de email ou já confirmado)
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Conta criada com sucesso!')),
-              );
-              // TODO: Navegar para a tela principal do app
-              // Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => HomePage()), (route) => false);
-          } else {
-             // Precisa confirmar e-mail
-             ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Verifique seu e-mail para confirmar a conta.')),
-             );
-             // TODO: Voltar para a tela de login ou mostrar mensagem
-             Navigator.of(context).popUntil((route) => route.isFirst); // Volta para a primeira tela da pilha (WelcomePage?)
-          }
-       } else {
-           // Caso inesperado ou erro silencioso
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Algo deu errado. Tente novamente.')),
-            );
-       }
-
-    } on AuthException catch (error) {
-       if (!mounted) return;
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Erro: ${error.message}')),
-       );
-    } catch (error) {
-       if (!mounted) return;
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Erro inesperado: $error')),
-       );
-    } finally {
-       if (mounted) {
-          setState(() => _isLoading = false);
-       }
-    }
+    
+    print('Email: ${widget.email}');
+    print('Telefone: $phone');
+    print('Senha: $password');
+    
+    // TODO: Armazenar os dados temporariamente ou passar para as próximas telas
+    // TODO: Fazer a chamada de API no final do fluxo de cadastro
+    
+    // Navegar para a página de seleção de tipo de conta
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SelectAccountTypePage(
+          // Passar dados se necessário:
+          // email: widget.email,
+          // phone: phone,
+          // password: password,
+        ),
+      ),
+    );
   }
 
 
@@ -218,15 +180,13 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                 ),
                 const SizedBox(height: AppSpacing.spacing32),
 
-                // Botão Continuar (Finalizar Cadastro)
-                _isLoading
-                   ? const Center(child: CircularProgressIndicator())
-                   : AppButton.primary(
-                      text: 'Continuar',
-                      onPressed: _signUp, // Chama a função final de cadastro
-                      minWidth: double.infinity,
-                    ),
-                 const SizedBox(height: AppSpacing.spacing16),
+                // Botão Continuar
+                AppButton.primary(
+                  text: 'Continuar',
+                  onPressed: _continue,
+                  minWidth: double.infinity,
+                ),
+                const SizedBox(height: AppSpacing.spacing16),
               ],
             ),
           ),

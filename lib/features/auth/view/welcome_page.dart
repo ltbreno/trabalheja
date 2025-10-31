@@ -6,6 +6,7 @@ import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/auth/view/login_page.dart';
+import 'package:trabalheja/features/auth/view/signup_email_page.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -90,6 +91,7 @@ class WelcomePage extends StatelessWidget {
       onPressed: () {
         // TODO: Navegar para tela de Cadastro
         print('Criar conta');
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const SignUpEmailPage()));
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColorsNeutral.neutral0, // Fundo branco
