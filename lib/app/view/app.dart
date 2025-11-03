@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+// import 'package:supabase_flutter/supabase_flutter.dart'; // Comentado para teste
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/core/widgets/MainAppShell.dart';
-import 'package:trabalheja/features/auth/view/welcome_page.dart';
 
 class App extends StatefulWidget {
   const App({super.key});
@@ -13,32 +12,34 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> {
-  final SupabaseClient _supabase = Supabase.instance.client;
-  bool _isLoggedIn = false;
+  // TESTE: Variáveis comentadas temporariamente
+  // final SupabaseClient _supabase = Supabase.instance.client;
+  // bool _isLoggedIn = false;
 
   @override
   void initState() {
     super.initState();
-    // Verifica o estado inicial de autenticação
-    _checkAuthState();
-    
-    // Listener para mudanças de autenticação
-    _supabase.auth.onAuthStateChange.listen((data) {
-      final Session? session = data.session;
-      
-      setState(() {
-        _isLoggedIn = session != null;
-      });
-    });
+    // TESTE: Código de autenticação comentado temporariamente
+    // // Verifica o estado inicial de autenticação
+    // _checkAuthState();
+    // 
+    // // Listener para mudanças de autenticação
+    // _supabase.auth.onAuthStateChange.listen((data) {
+    //   final Session? session = data.session;
+    //   
+    //   setState(() {
+    //     _isLoggedIn = session != null;
+    //   });
+    // });
   }
 
-  void _checkAuthState() {
-    // Verifica se há uma sessão ativa
-    final session = _supabase.auth.currentSession;
-    setState(() {
-      _isLoggedIn = session != null;
-    });
-  }
+  // void _checkAuthState() {
+  //   // Verifica se há uma sessão ativa
+  //   final session = _supabase.auth.currentSession;
+  //   setState(() {
+  //     _isLoggedIn = session != null;
+  //   });
+  // }
 
   TextTheme _buildTextTheme(TextTheme base) {
     final Color defaultTextColor = AppColorsNeutral.neutral900;
@@ -97,7 +98,9 @@ class _AppState extends State<App> {
         ),
         textTheme: _buildTextTheme(baseTheme.textTheme),
       ),
-      home: _isLoggedIn ? const MainAppShell() : const WelcomePage(),
+      // TESTE: Iniciar direto na página de pagamento
+      home: const MainAppShell(),
+      // home: _isLoggedIn ? const mainAppShell() : const WelcomePage(), // Comentado para teste
     );
   }
 }

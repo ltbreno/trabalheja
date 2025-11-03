@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
@@ -17,6 +18,7 @@ class _SecurityPasswordPageState extends State<SecurityPasswordPage> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _supabase = Supabase.instance.client;
   bool _isLoading = false;
 
   bool _isCurrentVisible = false;
@@ -31,21 +33,104 @@ class _SecurityPasswordPageState extends State<SecurityPasswordPage> {
     super.dispose();
   }
 
-  void _saveChanges() {
-     if (!(_formKey.currentState?.validate() ?? false)) return;
+  Future<void> _saveChanges() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
-    // TODO: Implementar lógica de atualização de senha no Supabase
-    // (ex: supabase.auth.updateUser(UserAttributes(password: newPassword)))
-    // Você pode precisar autenticar novamente o usuário com a senha atual primeiro.
-    print('Salvando nova senha...');
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Senha atualizada com sucesso!')),
+
+    try {
+      // Obter usuário atual e email
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      final email = user.email;
+      if (email == null || email.isEmpty) {
+        throw Exception('Email do usuário não encontrado');
+      }
+
+      final currentPassword = _currentPasswordController.text;
+      final newPassword = _newPasswordController.text;
+
+      // Validar a senha atual fazendo login
+      try {
+        await _supabase.auth.signInWithPassword(
+          email: email,
+          password: currentPassword,
+        );
+      } on AuthException catch (e) {
+        if (!mounted) return;
+
+        String errorMessage = 'Senha atual incorreta.';
+        final message = e.message.toLowerCase();
+
+        if (message.contains('invalid') || message.contains('credentials')) {
+          errorMessage = 'Senha atual incorreta. Verifique e tente novamente.';
+        } else {
+          errorMessage = e.message.isNotEmpty ? e.message : errorMessage;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Se chegou aqui, a senha atual é válida
+      // Agora atualizar para a nova senha
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
       );
+
+      if (!mounted) return;
+
+      // Sucesso!
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Senha atualizada com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
       Navigator.pop(context);
-    });
+    } on AuthException catch (e) {
+      if (!mounted) return;
+
+      String errorMessage = 'Erro ao atualizar senha.';
+      final message = e.message.toLowerCase();
+
+      if (message.contains('password') && message.contains('weak')) {
+        errorMessage = 'A nova senha é muito fraca. Use uma senha mais forte.';
+      } else if (message.contains('same')) {
+        errorMessage = 'A nova senha deve ser diferente da senha atual.';
+      } else {
+        errorMessage = e.message.isNotEmpty ? e.message : errorMessage;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao atualizar senha: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

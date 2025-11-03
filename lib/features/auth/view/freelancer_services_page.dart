@@ -121,17 +121,59 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                               throw Exception('Usuário não autenticado');
                             }
 
-                            // Tentar salvar nome e serviços no perfil
-                            // Se o perfil não existir ainda (freelancer), ignorar silenciosamente
-                            // O perfil será criado apenas no final do processo
-                            try {
+                            // Salvar nome e serviços no perfil
+                            // Criar perfil parcialmente se não existir
+                            
+                            // Verificar se o perfil já existe
+                            final existingProfile = await _supabase
+                                .from('profiles')
+                                .select('id')
+                                .eq('id', user.id)
+                                .maybeSingle();
+
+                            if (existingProfile != null) {
+                              // Perfil existe, fazer UPDATE
+                              print('📝 [FreelancerServicesPage] Atualizando perfil existente...');
                               await _supabase.from('profiles').update({
                                 'full_name': _nameController.text.trim(),
                                 'services': _servicesController.text.trim(),
                               }).eq('id', user.id);
-                            } catch (e) {
-                              // Se o perfil não existir, ignorar (será criado no final)
-                              print('ℹ️ [FreelancerServicesPage] Perfil ainda não existe (será criado no final)');
+                              print('✅ [FreelancerServicesPage] Nome e serviços salvos!');
+                            } else {
+                              // Perfil não existe, criar parcialmente
+                              // IMPORTANTE: Freelancers precisam de coordenadas (constraint do banco)
+                              // Usar coordenadas padrão que serão atualizadas na página de raio
+                              print('📝 [FreelancerServicesPage] Criando perfil parcial...');
+                              final profileData = <String, dynamic>{
+                                'id': user.id,
+                                'account_type': 'freelancer',
+                                'email': widget.email,
+                                'phone': widget.phone,
+                                'full_name': _nameController.text.trim(),
+                                'services': _servicesController.text.trim(),
+                                // Coordenadas padrão (serão atualizadas na página de raio)
+                                'service_latitude': -23.5505, // São Paulo
+                                'service_longitude': -46.6333, // São Paulo
+                                'service_radius': '5km', // Raio padrão
+                              };
+                              
+                              try {
+                                await _supabase.from('profiles').insert(profileData);
+                                print('✅ [FreelancerServicesPage] Perfil parcial criado!');
+                              } catch (insertError) {
+                                // Se o perfil foi criado entre a verificação e o insert, fazer update
+                                if (insertError.toString().contains('duplicate') || 
+                                    insertError.toString().contains('unique')) {
+                                  print('⚠️ [FreelancerServicesPage] Perfil foi criado, fazendo UPDATE...');
+                                  await _supabase.from('profiles').update({
+                                    'full_name': _nameController.text.trim(),
+                                    'services': _servicesController.text.trim(),
+                                  }).eq('id', user.id);
+                                  print('✅ [FreelancerServicesPage] Dados atualizados!');
+                                } else {
+                                  rethrow;
+                                }
+                              }
                             }
 
                             if (!mounted) return;

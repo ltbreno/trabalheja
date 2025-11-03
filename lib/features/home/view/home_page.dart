@@ -8,6 +8,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/proposals/view/proposals_page.dart';
 import 'package:trabalheja/features/review/view/review_service_page.dart';
 import 'package:trabalheja/features/service_request/view/request_service_page.dart';
+import 'package:trabalheja/features/home/view/freelancer_dashboard_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,7 +40,7 @@ class _HomePageState extends State<HomePage> {
 
       final profile = await _supabase
           .from('profiles')
-          .select('full_name, account_type, profile_picture_url')
+          .select('full_name, account_type, profile_picture_url, service_latitude, service_longitude, service_radius')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -76,6 +77,14 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final accountType = _profileData?['account_type'] as String?;
+    
+    // Se for freelancer, mostrar dashboard do freelancer
+    if (accountType == 'freelancer') {
+      return const FreelancerDashboardPage();
+    }
+    
+    // Dashboard padrão para clientes
     return Scaffold(
       backgroundColor: AppColorsPrimary.primary50,
       body: SafeArea(

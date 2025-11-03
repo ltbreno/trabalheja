@@ -42,6 +42,35 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _loadAddressFromProfile();
+  }
+
+  Future<void> _loadAddressFromProfile() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+      final profile = await _supabase
+          .from('profiles')
+          .select('address_cep, address_bairro, address_rua, address_numero, address_complemento, address_cidade')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (profile == null) return;
+      setState(() {
+        _cepController.text = (profile['address_cep'] ?? '').toString();
+        _bairroController.text = (profile['address_bairro'] ?? '').toString();
+        _ruaController.text = (profile['address_rua'] ?? '').toString();
+        _numeroController.text = (profile['address_numero'] ?? '').toString();
+        _complementoController.text = (profile['address_complemento'] ?? '').toString();
+        _cidadeController.text = (profile['address_cidade'] ?? _cidadeController.text).toString();
+      });
+    } catch (_) {
+      // silencioso
+    }
+  }
+
+  @override
   void dispose() {
     _cepController.dispose();
     _bairroController.dispose();
@@ -65,10 +94,27 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
         throw Exception('Usuário não autenticado');
       }
 
-      // Tentar salvar endereço no perfil
-      // Se o perfil não existir ainda (freelancer), ignorar silenciosamente
-      // O perfil será criado apenas no final do processo
-      try {
+      // Salvar endereço no perfil
+      // Criar perfil parcialmente se não existir
+      
+      // Buscar email e phone do usuário
+      final userEmail = user.email ?? user.userMetadata?['email'] as String?;
+      final userPhone = user.userMetadata?['phone'] as String?;
+      
+      if (userEmail == null || userPhone == null) {
+        throw Exception('Email ou telefone do usuário não encontrado');
+      }
+
+      // Verificar se o perfil já existe
+      final existingProfile = await _supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (existingProfile != null) {
+        // Perfil existe, fazer UPDATE
+        print('📝 [FreelancerAddressPage] Atualizando perfil existente com endereço...');
         await _supabase.from('profiles').update({
           'address_cep': _cepController.text.trim(),
           'address_bairro': _bairroController.text.trim(),
@@ -79,9 +125,54 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
               : _complementoController.text.trim(),
           'address_cidade': _cidadeController.text.trim(),
         }).eq('id', user.id);
-      } catch (e) {
-        // Se o perfil não existir, ignorar (será criado no final)
-        print('ℹ️ [FreelancerAddressPage] Perfil ainda não existe (será criado no final)');
+        print('✅ [FreelancerAddressPage] Endereço salvo com sucesso!');
+      } else {
+        // Perfil não existe, criar parcialmente
+        // IMPORTANTE: Freelancers precisam de coordenadas (constraint do banco)
+        // Usar coordenadas padrão que serão atualizadas na página de raio
+        print('📝 [FreelancerAddressPage] Criando perfil parcial com endereço...');
+        final profileData = <String, dynamic>{
+          'id': user.id,
+          'account_type': 'freelancer',
+          'email': userEmail,
+          'phone': userPhone,
+          'address_cep': _cepController.text.trim(),
+          'address_bairro': _bairroController.text.trim(),
+          'address_rua': _ruaController.text.trim(),
+          'address_numero': _numeroController.text.trim(),
+          'address_complemento': _complementoController.text.trim().isEmpty 
+              ? null 
+              : _complementoController.text.trim(),
+          'address_cidade': _cidadeController.text.trim(),
+          // Coordenadas padrão (serão atualizadas na página de raio)
+          'service_latitude': -23.5505, // São Paulo
+          'service_longitude': -46.6333, // São Paulo
+          'service_radius': '5km', // Raio padrão
+        };
+        
+        try {
+          await _supabase.from('profiles').insert(profileData);
+          print('✅ [FreelancerAddressPage] Perfil parcial criado com endereço!');
+        } catch (insertError) {
+          // Se o perfil foi criado entre a verificação e o insert, fazer update
+          if (insertError.toString().contains('duplicate') || 
+              insertError.toString().contains('unique')) {
+            print('⚠️ [FreelancerAddressPage] Perfil foi criado, fazendo UPDATE...');
+            await _supabase.from('profiles').update({
+              'address_cep': _cepController.text.trim(),
+              'address_bairro': _bairroController.text.trim(),
+              'address_rua': _ruaController.text.trim(),
+              'address_numero': _numeroController.text.trim(),
+              'address_complemento': _complementoController.text.trim().isEmpty 
+                  ? null 
+                  : _complementoController.text.trim(),
+              'address_cidade': _cidadeController.text.trim(),
+            }).eq('id', user.id);
+            print('✅ [FreelancerAddressPage] Endereço atualizado!');
+          } else {
+            rethrow;
+          }
+        }
       }
 
       if (!mounted) return;

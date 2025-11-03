@@ -1,11 +1,13 @@
 // lib/features/auth/view/freelancer_radius_page.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/core/widgets/app_map.dart';
 import 'package:trabalheja/features/auth/view/freelancer_picture_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_dropdown_field.dart';
@@ -26,10 +28,12 @@ class FreelancerRadiusPage extends StatefulWidget {
 }
 
 class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
-  final Completer<GoogleMapController> _mapController = Completer();
   final _supabase = Supabase.instance.client;
   String? _selectedRadius = '5km'; // Valor inicial
   bool _isLoading = false;
+  bool _isLoadingLocation = false;
+  LatLng? _currentCenter; // centro dinâmico quando localização disponível
+  final AppMapController _mapController = AppMapController();
 
   final List<DropdownItem<String>> _radiusOptions = [
     DropdownItem(value: '5km', label: 'Até 5km'),
@@ -38,28 +42,141 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
     DropdownItem(value: '50km', label: 'Mais de 50km'),
   ];
 
-  // Posição de exemplo (Interlagos, SP)
-  static const LatLng _center = LatLng(-23.6975, -46.6953);
+  // Posição padrão (Interlagos, SP) caso localização não esteja disponível
+  static const LatLng _fallbackCenter = LatLng(-23.6975, -46.6953);
 
-  // Círculo no mapa
-  final Set<Circle> _circles = {
-    Circle(
-      circleId: const CircleId('radius_circle'),
-      center: _center,
-      radius: 5000, // 5km (raio em metros)
-      fillColor: AppColorsPrimary.primary500.withOpacity(0.2),
-      strokeColor: AppColorsPrimary.primary700,
-      strokeWidth: 2,
-    ),
-  };
+  /// Converte o valor do raio selecionado para metros
+  double _getRadiusInMeters(String? radiusValue) {
+    switch (radiusValue) {
+      case '5km':
+        return 5000;
+      case '10km':
+        return 10000;
+      case '20km':
+        return 20000;
+      case '50km':
+        return 50000;
+      default:
+        return 5000;
+    }
+  }
 
-  // Marcador no mapa
-  final Set<Marker> _markers = {
-    const Marker(
-      markerId: MarkerId('center_pin'),
-      position: _center,
-    ),
-  };
+  @override
+  void initState() {
+    super.initState();
+    _askAndLoadCurrentLocation();
+  }
+
+  Future<void> _askAndLoadCurrentLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        // mantém fallback; usuário pode ativar manualmente depois
+        setState(() {
+          _currentCenter = null;
+        });
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final newCenter = LatLng(position.latitude, position.longitude);
+      setState(() {
+        _currentCenter = newCenter;
+      });
+
+      // Centralizar mapa na localização atual
+      _mapController.moveToLocation(newCenter);
+
+      // Tentar reverse geocode e salvar endereço para auto-preencher a AddressPage
+      await _reverseGeocodeAndPersist(position.latitude, position.longitude);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Localização atual detectada.')),
+      );
+    } catch (e) {
+      // Silencioso: usa fallback
+      setState(() {
+        _currentCenter = null;
+      });
+    }
+  }
+
+  Future<void> _centerOnCurrentLocation() async {
+    setState(() => _isLoadingLocation = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permissão de localização negada. Habilite nas configurações do dispositivo.'),
+          ),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final newCenter = LatLng(position.latitude, position.longitude);
+      setState(() {
+        _currentCenter = newCenter;
+      });
+
+      // Centralizar mapa na localização atual
+      _mapController.moveToLocation(newCenter);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mapa centralizado na sua localização.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao obter localização: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLocation = false);
+      }
+    }
+  }
+
+  Future<void> _reverseGeocodeAndPersist(double lat, double lng) async {
+    try {
+      final placemarks = await geo.placemarkFromCoordinates(lat, lng);
+      if (placemarks.isEmpty) return;
+      final p = placemarks.first;
+
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      await _supabase.from('profiles').update({
+        'address_rua': p.street?.trim().isEmpty == true ? null : p.street,
+        'address_bairro': p.subLocality?.trim().isEmpty == true ? null : p.subLocality,
+        'address_cidade': [p.subAdministrativeArea, p.administrativeArea]
+                .where((e) => (e ?? '').isNotEmpty)
+                .join(', '),
+        // CEP nem sempre vem no iOS/Android; tenta postalCode quando disponível
+        'address_cep': p.postalCode?.trim().isEmpty == true ? null : p.postalCode,
+      }).eq('id', user.id);
+    } catch (_) {
+      // Ignora falhas de geocodificação
+    }
+  }
 
   Future<void> _continue() async {
     if (_selectedRadius == null) {
@@ -77,18 +194,66 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
         throw Exception('Usuário não autenticado');
       }
 
-      // Tentar salvar raio de atuação e coordenadas no perfil
-      // Se o perfil não existir ainda (freelancer), ignorar silenciosamente
-      // O perfil será criado apenas no final do processo
-      try {
+      // Salvar raio de atuação e coordenadas no perfil
+      // Como freelancers precisam ter coordenadas (constraint do banco),
+      // vamos criar o perfil parcialmente aqui se não existir
+      final center = _currentCenter ?? _fallbackCenter;
+      
+      // Buscar email e phone do usuário
+      final userEmail = user.email ?? user.userMetadata?['email'] as String?;
+      final userPhone = user.userMetadata?['phone'] as String?;
+      
+      if (userEmail == null || userPhone == null) {
+        throw Exception('Email ou telefone do usuário não encontrado');
+      }
+
+      // Verificar se o perfil já existe
+      final existingProfile = await _supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (existingProfile != null) {
+        // Perfil existe, fazer UPDATE
+        print('📝 [FreelancerRadiusPage] Atualizando perfil existente com coordenadas...');
         await _supabase.from('profiles').update({
           'service_radius': _selectedRadius,
-          'service_latitude': _center.latitude,
-          'service_longitude': _center.longitude,
+          'service_latitude': center.latitude,
+          'service_longitude': center.longitude,
         }).eq('id', user.id);
-      } catch (e) {
-        // Se o perfil não existir, ignorar (será criado no final)
-        print('ℹ️ [FreelancerRadiusPage] Perfil ainda não existe (será criado no final)');
+        print('✅ [FreelancerRadiusPage] Coordenadas salvas com sucesso!');
+      } else {
+        // Perfil não existe, criar parcialmente com dados mínimos necessários
+        print('📝 [FreelancerRadiusPage] Criando perfil parcial com coordenadas...');
+        final profileData = <String, dynamic>{
+          'id': user.id,
+          'account_type': 'freelancer',
+          'email': userEmail,
+          'phone': userPhone,
+          'service_radius': _selectedRadius,
+          'service_latitude': center.latitude,
+          'service_longitude': center.longitude,
+        };
+        
+        try {
+          await _supabase.from('profiles').insert(profileData);
+          print('✅ [FreelancerRadiusPage] Perfil parcial criado com coordenadas!');
+        } catch (insertError) {
+          // Se o perfil foi criado entre a verificação e o insert, fazer update
+          if (insertError.toString().contains('duplicate') || 
+              insertError.toString().contains('unique')) {
+            print('⚠️ [FreelancerRadiusPage] Perfil foi criado, fazendo UPDATE...');
+            await _supabase.from('profiles').update({
+              'service_radius': _selectedRadius,
+              'service_latitude': center.latitude,
+              'service_longitude': center.longitude,
+            }).eq('id', user.id);
+            print('✅ [FreelancerRadiusPage] Coordenadas atualizadas!');
+          } else {
+            rethrow;
+          }
+        }
       }
 
       if (!mounted) return;
@@ -168,7 +333,6 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
                     onChanged: (value) {
                       setState(() {
                         _selectedRadius = value;
-                        // TODO: Atualizar o raio do Círculo no mapa
                       });
                     },
                   ),
@@ -179,21 +343,43 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
             
             // Mapa
             Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.spacing12),
-                child: GoogleMap(
-                  mapType: MapType.normal,
-                  initialCameraPosition: const CameraPosition(
-                    target: _center,
-                    zoom: 12.0, // Ajuste o zoom inicial
-                  ),
-                  onMapCreated: (GoogleMapController controller) {
-                    _mapController.complete(controller);
-                  },
-                  circles: _circles,
-                  markers: _markers,
-                  zoomControlsEnabled: false, // Desabilitar controles de zoom
-                  scrollGesturesEnabled: false, // Desabilitar scroll (opcional)
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing24),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppSpacing.spacing12),
+                      child: AppMap(
+                        controller: _mapController,
+                        center: _currentCenter ?? _fallbackCenter,
+                        radius: _getRadiusInMeters(_selectedRadius),
+                        initialZoom: 12.0,
+                        isInteractive: true, // Habilitar interação
+                      ),
+                    ),
+                    // Botão para centralizar na localização atual
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: FloatingActionButton.small(
+                        onPressed: _isLoadingLocation ? null : _centerOnCurrentLocation,
+                        backgroundColor: AppColorsPrimary.primary700,
+                        child: _isLoadingLocation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : Icon(
+                                Icons.my_location,
+                                color: AppColorsNeutral.neutral0,
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

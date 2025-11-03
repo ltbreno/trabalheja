@@ -54,13 +54,8 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
   }
 
   Future<void> _finalizeRegistration() async {
-    if (_imageFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, envie uma foto de perfil.')),
-      );
-      return;
-    }
-
+    // Foto agora é opcional - não precisa validar
+    
     setState(() => _isLoading = true);
 
     try {
@@ -69,66 +64,96 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
         throw Exception('Usuário não autenticado');
       }
 
-      // 1. Fazer upload da imagem para o Supabase Storage
-      final fileExtension = _imageFile!.path.split('.').last.toLowerCase();
-      final fileName = '${user.id}/profile_picture.$fileExtension';
-      
-      print('📤 Iniciando upload de foto de perfil...');
-      print('   Bucket: profiles');
-      print('   FileName: $fileName');
-      print('   Extension: $fileExtension');
-      
-      // Determinar contentType baseado na extensão
-      String contentType;
-      if (fileExtension == 'png') {
-        contentType = 'image/png';
-      } else if (fileExtension == 'jpg' || fileExtension == 'jpeg') {
-        contentType = 'image/jpeg';
+      // 1. Fazer upload da imagem para o Supabase Storage (se houver)
+      String? imageUrl;
+      if (_imageFile != null) {
+        final fileExtension = _imageFile!.path.split('.').last.toLowerCase();
+        final fileName = '${user.id}/profile_picture.$fileExtension';
+        
+        print('📤 Iniciando upload de foto de perfil...');
+        print('   Bucket: profiles');
+        print('   FileName: $fileName');
+        print('   Extension: $fileExtension');
+        
+        // Determinar contentType baseado na extensão
+        String contentType;
+        if (fileExtension == 'png') {
+          contentType = 'image/png';
+        } else if (fileExtension == 'jpg' || fileExtension == 'jpeg') {
+          contentType = 'image/jpeg';
+        } else {
+          contentType = 'image/jpeg'; // fallback
+        }
+        
+        final imageFile = File(_imageFile!.path);
+        
+        print('   ContentType: $contentType');
+        print('   File size: ${await imageFile.length()} bytes');
+        
+        // Tentar upload usando o método correto
+        try {
+          await _supabase.storage
+              .from('profiles')
+              .upload(
+                fileName,
+                imageFile,
+                fileOptions: FileOptions(
+                  contentType: contentType,
+                  upsert: true,
+                ),
+              );
+          print('✅ Upload concluído com sucesso!');
+          
+          // Obter URL pública da imagem
+          imageUrl = _supabase.storage
+              .from('profiles')
+              .getPublicUrl(fileName);
+          
+          print('   URL pública: $imageUrl');
+        } catch (uploadError) {
+          print('❌ Erro no upload: $uploadError');
+          
+          // Verificar se é erro de bucket não encontrado
+          final errorString = uploadError.toString().toLowerCase();
+          if (errorString.contains('bucket') || 
+              errorString.contains('not found') ||
+              errorString.contains('does not exist')) {
+            print('⚠️ Bucket "profiles" não encontrado. Continuando sem foto.');
+            // Continuar sem foto - não é crítico já que a foto é opcional
+            imageUrl = null;
+          } else {
+            // Tentar método alternativo para outros erros
+            try {
+              print('🔄 Tentando método alternativo de upload...');
+              final imageBytes = await imageFile.readAsBytes();
+              await _supabase.storage
+                  .from('profiles')
+                  .uploadBinary(
+                    fileName,
+                    imageBytes,
+                    fileOptions: FileOptions(
+                      contentType: contentType,
+                      upsert: true,
+                    ),
+                  );
+              print('✅ Upload concluído usando método alternativo!');
+              
+              // Obter URL pública da imagem
+              imageUrl = _supabase.storage
+                  .from('profiles')
+                  .getPublicUrl(fileName);
+              
+              print('   URL pública: $imageUrl');
+            } catch (alternativeError) {
+              print('❌ Método alternativo também falhou: $alternativeError');
+              // Continuar sem foto mesmo em caso de erro
+              imageUrl = null;
+            }
+          }
+        }
       } else {
-        contentType = 'image/jpeg'; // fallback
+        print('ℹ️ Nenhuma foto selecionada - continuando sem foto de perfil');
       }
-      
-      final imageFile = File(_imageFile!.path);
-      
-      print('   ContentType: $contentType');
-      print('   File size: ${await imageFile.length()} bytes');
-      
-      // Tentar upload usando o método correto
-      try {
-        await _supabase.storage
-            .from('profiles')
-            .upload(
-              fileName,
-              imageFile,
-              fileOptions: FileOptions(
-                contentType: contentType,
-                upsert: true,
-              ),
-            );
-        print('✅ Upload concluído com sucesso!');
-      } catch (uploadError) {
-        print('❌ Erro no upload: $uploadError');
-        // Tentar método alternativo se o primeiro falhar
-        final imageBytes = await imageFile.readAsBytes();
-        await _supabase.storage
-            .from('profiles')
-            .uploadBinary(
-              fileName,
-              imageBytes,
-              fileOptions: FileOptions(
-                contentType: contentType,
-                upsert: true,
-              ),
-            );
-        print('✅ Upload concluído usando método alternativo!');
-      }
-
-      // 2. Obter URL pública da imagem
-      final imageUrl = _supabase.storage
-          .from('profiles')
-          .getPublicUrl(fileName);
-      
-      print('   URL pública: $imageUrl');
 
       // 3. Buscar todos os dados já salvos nas páginas anteriores
       // Como o perfil ainda não existe (não foi criado), vamos buscar do auth.user
@@ -170,8 +195,12 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
         'account_type': 'freelancer',
         'email': userEmail,
         'phone': userPhone,
-        'profile_picture_url': imageUrl,
       };
+
+      // Adicionar URL da foto apenas se houver
+      if (imageUrl != null) {
+        profileData['profile_picture_url'] = imageUrl;
+      }
 
       // Adicionar dados que podem ter sido salvos nas páginas anteriores
       if (existingProfileData != null) {
@@ -211,8 +240,8 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
         }
       }
 
-      // Debug: mostrar o que será criado
-      print('📤 [FreelancerPicturePage] Criando perfil FREELANCER completo:');
+      // Debug: mostrar o que será criado/atualizado
+      print('📤 [FreelancerPicturePage] Finalizando perfil FREELANCER:');
       print('   - id: ${profileData['id']}');
       print('   - account_type: ${profileData['account_type']}');
       print('   - email: ${profileData['email']}');
@@ -221,11 +250,18 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
       print('   - service_latitude: ${profileData['service_latitude'] ?? 'não definido'}');
       print('   - service_longitude: ${profileData['service_longitude'] ?? 'não definido'}');
 
-      // Criar o perfil FREELANCER pela primeira vez (INSERT completo)
-      // Como o perfil não existe ainda, fazemos INSERT com todos os dados
-      await _supabase.from('profiles').insert(profileData);
-      
-      print('✅ [FreelancerPicturePage] Perfil FREELANCER criado com sucesso!');
+      // Verificar se o perfil já existe (pode ter sido criado parcialmente na página de raio)
+      if (existingProfileData != null) {
+        // Perfil já existe, fazer UPDATE
+        print('📝 [FreelancerPicturePage] Perfil já existe, fazendo UPDATE...');
+        await _supabase.from('profiles').update(profileData).eq('id', user.id);
+        print('✅ [FreelancerPicturePage] Perfil FREELANCER atualizado com sucesso!');
+      } else {
+        // Perfil não existe, criar completo (INSERT)
+        print('📝 [FreelancerPicturePage] Criando perfil FREELANCER completo...');
+        await _supabase.from('profiles').insert(profileData);
+        print('✅ [FreelancerPicturePage] Perfil FREELANCER criado com sucesso!');
+      }
 
       if (!mounted) return;
 
@@ -242,7 +278,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
       if (!mounted) return;
       
       // Log detalhado do erro
-      print('❌ ERRO CRÍTICO no upload:');
+      print('❌ ERRO CRÍTICO no cadastro:');
       print('   Tipo: ${e.runtimeType}');
       print('   Mensagem: ${e.toString()}');
       if (e is StorageException) {
@@ -251,13 +287,26 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
       }
       
       // Mensagem de erro mais específica para o usuário
-      String errorMessage = 'Erro ao fazer upload da foto.';
-      if (e.toString().contains('bucket') || e.toString().contains('not found')) {
-        errorMessage = 'Bucket de armazenamento não encontrado. Verifique as configurações.';
-      } else if (e.toString().contains('permission') || e.toString().contains('policy')) {
-        errorMessage = 'Sem permissão para fazer upload. Verifique as políticas do Storage.';
-      } else if (e.toString().contains('size') || e.toString().contains('limit')) {
-        errorMessage = 'Arquivo muito grande. Tamanho máximo: 10MB.';
+      String errorMessage = 'Erro ao finalizar cadastro.';
+      final errorString = e.toString().toLowerCase();
+      
+      if (errorString.contains('email') && errorString.contains('não encontrado')) {
+        errorMessage = 'Email do usuário não encontrado. Tente fazer login novamente.';
+      } else if (errorString.contains('phone') || errorString.contains('telefone')) {
+        errorMessage = 'Telefone do usuário não encontrado. Verifique seus dados.';
+      } else if (errorString.contains('permission') || errorString.contains('policy')) {
+        errorMessage = 'Sem permissão. Verifique as configurações do banco de dados.';
+      } else if (errorString.contains('duplicate') || errorString.contains('unique')) {
+        errorMessage = 'Este perfil já existe. Redirecionando...';
+        // Tentar navegar mesmo assim
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const MainAppShell()),
+              (route) => false,
+            );
+          }
+        });
       }
       
       ScaffoldMessenger.of(context).showSnackBar(

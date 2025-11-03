@@ -8,6 +8,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/core/widgets/MainAppShell.dart';
+import 'package:trabalheja/features/auth/view/reset_password_request_page.dart';
 
 class EmailLoginPage extends StatefulWidget { // Alterado para StatefulWidget
   const EmailLoginPage({super.key});
@@ -215,8 +216,12 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
                   alignment: Alignment.center,
                   child: TextButton(
                     onPressed: () {
-                      // TODO: Navegar para tela de recuperação de senha
-                      print('Esqueci minha senha');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ResetPasswordRequestPage(),
+                        ),
+                      );
                     },
                     child: Text(
                       'Esqueci minha senha',

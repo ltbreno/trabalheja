@@ -1,18 +1,23 @@
+// lib/features/chat/view/chat_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/chat/widgets/message_bubble.dart';
-import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 
 class ChatDetailPage extends StatefulWidget {
+  final String conversationId;
+  final String? otherParticipantId;
   final String name;
   final String initials;
 
   const ChatDetailPage({
     super.key,
+    required this.conversationId,
+    this.otherParticipantId,
     required this.name,
     required this.initials,
   });
@@ -23,40 +28,163 @@ class ChatDetailPage extends StatefulWidget {
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
   final _messageController = TextEditingController();
+  final _supabase = Supabase.instance.client;
+  final ScrollController _scrollController = ScrollController();
+  
+  List<Map<String, dynamic>> _messages = [];
+  bool _isLoading = true;
+  bool _isSending = false;
+  RealtimeChannel? _realtimeChannel;
+  String? _currentUserId;
 
-  // Lista de mensagens mocada
-  final List<Map<String, dynamic>> _messages = [
-    {"isSender": false, "text": "Maravilha, te aguardo..."},
-    {"isSender": true, "text": "Combinado. Estarei aí às 14h."},
-    {"isSender": false, "text": "Você pode trazer a furadeira?"},
-    {
-      "isSender": true,
-      "text": "Posso sim. Levo todo o material necessário."
-    },
-    {
-      "isSender": true,
-      "text":
-          "O valor fica R\$ 120,00, conforme conversamos. Está tudo certo?"
-    },
-    {"isSender": false, "text": "Perfeito, pode confirmar."},
-  ];
-
-  void _sendMessage() {
-    final text = _messageController.text;
-    if (text.isEmpty) return;
-
-    // TODO: Adicionar lógica de envio ao Supabase (Realtime)
-    setState(() {
-      _messages.insert(0, {"isSender": true, "text": text});
-      _messageController.clear();
+  @override
+  void initState() {
+    super.initState();
+    _currentUserId = _supabase.auth.currentUser?.id;
+    _loadMessages();
+    _subscribeToMessages();
+    
+    // Listener para enviar ao pressionar Enter
+    _messageController.addListener(() {
+      // Será tratado no onChanged ou no botão
     });
-    print('Mensagem enviada: $text');
   }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
+    _realtimeChannel?.unsubscribe();
     super.dispose();
+  }
+
+  Future<void> _loadMessages() async {
+    try {
+      final messages = await _supabase
+          .from('messages')
+          .select('''
+            *,
+            sender:profiles!messages_sender_id_fkey (
+              id,
+              full_name
+            )
+          ''')
+          .eq('conversation_id', widget.conversationId)
+          .order('created_at', ascending: false);
+
+      setState(() {
+        _messages = List<Map<String, dynamic>>.from(messages);
+        _isLoading = false;
+      });
+
+      // Marcar mensagens como lidas
+      if (widget.otherParticipantId != null) {
+        await _markMessagesAsRead();
+      }
+
+      // Scroll para o topo (última mensagem)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+      });
+    } catch (e) {
+      print('Erro ao carregar mensagens: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _subscribeToMessages() {
+    // Escutar novas mensagens em tempo real
+    _realtimeChannel = _supabase
+        .channel('messages_${widget.conversationId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: widget.conversationId,
+          ),
+          callback: (payload) {
+            final newMessage = payload.newRecord;
+            
+            // Buscar dados do sender
+            _supabase
+                .from('profiles')
+                .select('id, full_name')
+                .eq('id', newMessage['sender_id'])
+                .maybeSingle()
+                .then((sender) {
+                  setState(() {
+                    _messages.insert(0, {
+                      ...newMessage,
+                      'sender': sender,
+                    });
+                  });
+
+                  // Marcar como lida se não for minha mensagem
+                  if (newMessage['sender_id'] != _currentUserId) {
+                    _markMessagesAsRead();
+                  }
+
+                  // Scroll para nova mensagem
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_scrollController.hasClients) {
+                      _scrollController.animateTo(
+                        0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
+                    }
+                  });
+                });
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    if (_currentUserId == null || widget.otherParticipantId == null) return;
+
+    try {
+      await _supabase
+          .from('messages')
+          .update({'read_at': DateTime.now().toIso8601String()})
+          .eq('conversation_id', widget.conversationId)
+          .eq('sender_id', widget.otherParticipantId!)
+          .isFilter('read_at', null);
+    } catch (e) {
+      print('Erro ao marcar mensagens como lidas: $e');
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty || _isSending || _currentUserId == null) return;
+
+    setState(() => _isSending = true);
+
+    try {
+      await _supabase.from('messages').insert({
+        'conversation_id': widget.conversationId,
+        'sender_id': _currentUserId,
+        'content': text,
+      });
+
+      _messageController.clear();
+    } catch (e) {
+      print('Erro ao enviar mensagem: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao enviar mensagem: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isSending = false);
+    }
   }
 
   @override
@@ -69,18 +197,39 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           children: [
             // Lista de Mensagens
             Expanded(
-              child: ListView.builder(
-                reverse: true, // Começa de baixo para cima
-                padding: const EdgeInsets.all(AppSpacing.spacing16),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final message = _messages[index];
-                  return MessageBubble(
-                    text: message['text'],
-                    isSender: message['isSender'],
-                  );
-                },
-              ),
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: AppColorsPrimary.primary700,
+                      ),
+                    )
+                  : _messages.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Nenhuma mensagem ainda',
+                            style: AppTypography.contentRegular.copyWith(
+                              color: AppColorsNeutral.neutral500,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          reverse: true,
+                          padding: const EdgeInsets.all(AppSpacing.spacing16),
+                          itemCount: _messages.length,
+                          itemBuilder: (context, index) {
+                            final message = _messages[index];
+                            final sender = message['sender'] as Map<String, dynamic>?;
+                            final senderId = sender?['id'] as String?;
+                            final isSender = senderId == _currentUserId;
+                            final content = message['content'] as String? ?? '';
+
+                            return MessageBubble(
+                              text: content,
+                              isSender: isSender,
+                            );
+                          },
+                        ),
             ),
             // Barra de Input
             _buildInputBar(context),
@@ -90,11 +239,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 
-  // AppBar customizada
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: AppColorsPrimary.primary50,
-      elevation: 1, // Sombra leve
+      elevation: 1,
       leading: IconButton(
         icon: Icon(Icons.arrow_back, color: AppColorsNeutral.neutral900),
         onPressed: () => Navigator.pop(context),
@@ -140,7 +288,6 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 
-  // Barra de input de mensagem
   Widget _buildInputBar(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -155,47 +302,66 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       ),
       child: Row(
         children: [
-          // Campo de Texto
           Expanded(
-            child: AppTextField(
-              label: '', // Sem label
-              hintText: 'Digite sua mensagem...',
+            child: TextField(
               controller: _messageController,
-              // Reduzindo o padding interno para ficar mais compacto
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: AppSpacing.spacing12,
-                horizontal: AppSpacing.spacing16,
+              enabled: !_isSending,
+              decoration: InputDecoration(
+                hintText: 'Digite sua mensagem...',
+                hintStyle: AppTypography.contentRegular.copyWith(
+                  color: AppColorsNeutral.neutral400,
+                ),
+                filled: true,
+                fillColor: AppColorsNeutral.neutral50,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.spacing12,
+                  horizontal: AppSpacing.spacing16,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: AppRadius.radiusRound,
+                  borderSide: BorderSide(color: AppColorsNeutral.neutral200),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: AppRadius.radiusRound,
+                  borderSide: BorderSide(color: AppColorsNeutral.neutral200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: AppRadius.radiusRound,
+                  borderSide: BorderSide(color: AppColorsPrimary.primary500),
+                ),
               ),
-              // Remover bordas padrão para parecer mais com um chat
-              border: OutlineInputBorder(
-                borderRadius: AppRadius.radiusRound,
-                borderSide: BorderSide(color: AppColorsNeutral.neutral200),
+              style: AppTypography.contentRegular.copyWith(
+                color: AppColorsNeutral.neutral900,
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: AppRadius.radiusRound,
-                borderSide: BorderSide(color: AppColorsNeutral.neutral200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: AppRadius.radiusRound,
-                borderSide: BorderSide(color: AppColorsPrimary.primary500),
-              ),
+              onSubmitted: (_) => _sendMessage(),
             ),
           ),
           const SizedBox(width: AppSpacing.spacing12),
-          // Botão Enviar
           IconButton(
             style: IconButton.styleFrom(
               backgroundColor: AppColorsPrimary.primary900,
               padding: const EdgeInsets.all(AppSpacing.spacing12),
+              disabledBackgroundColor: AppColorsNeutral.neutral300,
             ),
-            icon: SvgPicture.asset(
-              'assets/icons/send.svg',
-              height: 24,
-              width: 24,
-              colorFilter:
-                  ColorFilter.mode(AppColorsNeutral.neutral0, BlendMode.srcIn),
-            ),
-            onPressed: _sendMessage,
+            icon: _isSending
+                ? SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColorsNeutral.neutral0,
+                    ),
+                  )
+                : SvgPicture.asset(
+                    'assets/icons/send.svg',
+                    height: 24,
+                    width: 24,
+                    colorFilter: ColorFilter.mode(
+                      AppColorsNeutral.neutral0,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+            onPressed: _isSending ? null : _sendMessage,
           ),
         ],
       ),
