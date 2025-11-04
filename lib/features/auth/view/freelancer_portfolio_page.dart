@@ -1,27 +1,19 @@
 // lib/features/auth/view/freelancer_portfolio_page.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // Para o ícone de upload
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
+import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/auth/view/freelancer_address_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 
-// Importe a tela principal ou de dashboard
-// import 'package:trabalheja/features/home/view/home_page.dart';
-
-// Pacote para desenhar borda tracejada (adicione ao pubspec.yaml)
-// import 'package:dotted_border/dotted_border.dart';
-
 class FreelancerPortfolioPage extends StatefulWidget {
-  // Receber dados das telas anteriores
-  // final String fullName;
-  // final String services;
-
   const FreelancerPortfolioPage({
     super.key,
-    // required this.fullName,
-    // required this.services,
   });
 
   @override
@@ -29,25 +21,253 @@ class FreelancerPortfolioPage extends StatefulWidget {
 }
 
 class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
+  final _supabase = Supabase.instance.client;
+  final ImagePicker _picker = ImagePicker();
+  
+  List<XFile> _selectedPhotos = [];
+  List<XFile> _selectedVideos = [];
+  bool _isLoading = false;
 
-  void _selectPhotos() {
-    // TODO: Implementar lógica para selecionar fotos usando image_picker
-    print('Selecionar Fotos');
+  // Limites
+  static const int maxPhotos = 3;
+  static const int minPhotos = 1;
+  static const int maxVideos = 2;
+  static const int minVideos = 0;
+  static const int maxPhotoSizeMB = 10;
+  static const int maxVideoSizeMB = 150;
+
+  Future<void> _selectPhotos() async {
+    try {
+      final List<XFile> photos = await _picker.pickMultiImage();
+      
+      if (photos.isEmpty) return;
+
+      // Verificar quantas fotos podem ser adicionadas
+      final int remainingSlots = maxPhotos - _selectedPhotos.length;
+      if (remainingSlots <= 0) {
+        _showError('Você já selecionou o máximo de $maxPhotos fotos.');
+        return;
+      }
+
+      // Adicionar apenas as fotos que cabem no limite
+      final List<XFile> photosToAdd = photos.take(remainingSlots).toList();
+      
+      // Validar tamanho de cada foto
+      for (final photo in photosToAdd) {
+        final file = File(photo.path);
+        final sizeInMB = await file.length() / (1024 * 1024);
+        if (sizeInMB > maxPhotoSizeMB) {
+          _showError('A foto "${photo.name}" excede o tamanho máximo de ${maxPhotoSizeMB}MB.');
+          return;
+        }
+      }
+
+      setState(() {
+        _selectedPhotos.addAll(photosToAdd);
+      });
+
+      if (photos.length > remainingSlots) {
+        _showInfo('Apenas ${remainingSlots} foto(s) foram adicionadas (máximo de $maxPhotos).');
+      }
+    } catch (e) {
+      _showError('Erro ao selecionar fotos: ${e.toString()}');
+    }
   }
 
-  void _selectVideos() {
-    // TODO: Implementar lógica para selecionar vídeos usando file_picker ou similar
-    print('Selecionar Vídeos');
+  Future<void> _selectVideos() async {
+    try {
+      final XFile? video = await _picker.pickVideo(
+        source: ImageSource.gallery,
+      );
+      
+      if (video == null) return;
+
+      // Verificar limite
+      if (_selectedVideos.length >= maxVideos) {
+        _showError('Você já selecionou o máximo de $maxVideos vídeos.');
+        return;
+      }
+
+      // Validar tamanho
+      final file = File(video.path);
+      final sizeInMB = await file.length() / (1024 * 1024);
+      if (sizeInMB > maxVideoSizeMB) {
+        _showError('O vídeo "${video.name}" excede o tamanho máximo de ${maxVideoSizeMB}MB.');
+        return;
+      }
+
+      setState(() {
+        _selectedVideos.add(video);
+      });
+    } catch (e) {
+      _showError('Erro ao selecionar vídeo: ${e.toString()}');
+    }
   }
 
-  void _continue() async {
-     print('Finalizando cadastro do freelancer...');
-     // TODO:
-     // 1. Fazer upload das fotos/vídeos selecionados para o Supabase Storage.
-     // 2. Salvar/Atualizar o perfil do usuário na tabela 'profiles' com
-     //    todos os dados coletados (nome, serviços, URLs do portfólio, etc.).
+  void _removePhoto(int index) {
+    setState(() {
+      _selectedPhotos.removeAt(index);
+    });
+  }
 
-     Navigator.push(context, MaterialPageRoute(builder: (context) => FreelancerAddressPage()));
+  void _removeVideo(int index) {
+    setState(() {
+      _selectedVideos.removeAt(index);
+    });
+  }
+
+  bool _validateFiles() {
+    if (_selectedPhotos.length < minPhotos) {
+      _showError('Você precisa selecionar pelo menos $minPhotos fotos.');
+      return false;
+    }
+    if (_selectedVideos.length < minVideos) {
+      _showError('Você precisa selecionar pelo menos $minVideos vídeos.');
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _continue() async {
+    if (!_validateFiles()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      // Upload das fotos
+      final List<String> photoUrls = [];
+      for (int i = 0; i < _selectedPhotos.length; i++) {
+        final photo = _selectedPhotos[i];
+        final fileExtension = photo.path.split('.').last.toLowerCase();
+        final fileName = '${user.id}/portfolio/photo_${i + 1}.$fileExtension';
+        
+        final contentType = fileExtension == 'png' ? 'image/png' : 'image/jpeg';
+        final file = File(photo.path);
+
+        try {
+          await _supabase.storage
+              .from('profiles')
+              .upload(
+                fileName,
+                file,
+                fileOptions: FileOptions(
+                  contentType: contentType,
+                  upsert: true,
+                ),
+              );
+
+          final url = _supabase.storage
+              .from('profiles')
+              .getPublicUrl(fileName);
+          
+          photoUrls.add(url);
+        } catch (uploadError) {
+          print('❌ Erro no upload da foto ${i + 1}: $uploadError');
+          // Se for erro 403, dar mensagem mais específica
+          final errorString = uploadError.toString().toLowerCase();
+          if (errorString.contains('403') || errorString.contains('forbidden') || errorString.contains('permission')) {
+            throw Exception('Erro de permissão: Verifique as políticas do Storage no Supabase. O usuário precisa ter permissão para fazer upload na pasta ${user.id}/portfolio/');
+          }
+          rethrow;
+        }
+      }
+
+      // Upload dos vídeos
+      final List<String> videoUrls = [];
+      for (int i = 0; i < _selectedVideos.length; i++) {
+        final video = _selectedVideos[i];
+        final fileExtension = video.path.split('.').last.toLowerCase();
+        final fileName = '${user.id}/portfolio/video_${i + 1}.$fileExtension';
+        
+        final contentType = _getVideoContentType(fileExtension);
+        final file = File(video.path);
+
+        try {
+          await _supabase.storage
+              .from('profiles')
+              .upload(
+                fileName,
+                file,
+                fileOptions: FileOptions(
+                  contentType: contentType,
+                  upsert: true,
+                ),
+              );
+
+          final url = _supabase.storage
+              .from('profiles')
+              .getPublicUrl(fileName);
+          
+          videoUrls.add(url);
+        } catch (uploadError) {
+          print('❌ Erro no upload do vídeo ${i + 1}: $uploadError');
+          // Se for erro 403, dar mensagem mais específica
+          final errorString = uploadError.toString().toLowerCase();
+          if (errorString.contains('403') || errorString.contains('forbidden') || errorString.contains('permission')) {
+            throw Exception('Erro de permissão: Verifique as políticas do Storage no Supabase. O usuário precisa ter permissão para fazer upload na pasta ${user.id}/portfolio/');
+          }
+          rethrow;
+        }
+      }
+
+      // Atualizar perfil com as URLs
+      await _supabase.from('profiles').update({
+        'portfolio_photos': photoUrls,
+        'portfolio_videos': videoUrls,
+      }).eq('id', user.id);
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const FreelancerAddressPage()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showError('Erro ao fazer upload: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _getVideoContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'avi':
+        return 'video/x-msvideo';
+      default:
+        return 'video/mp4';
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColorsError.error600,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _showInfo(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColorsNeutral.neutral600,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -95,34 +315,22 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
               const SizedBox(height: AppSpacing.spacing32),
 
               // Seção Fotos
-              _buildUploadSection(
-                title: 'Fotos',
-                description: 'Envie pelo menos 3 fotos\ndo seu trabalho',
-                buttonText: 'Selecionar do dispositivo',
-                allowedFormats: 'Arquivos em PNG ou JPG (Tamanho máximo 10Mb)',
-                onSelect: _selectPhotos,
-                uploadIconPath: 'assets/icons/cloud_upload.svg', // Crie este ícone
-              ),
+              _buildPhotoSection(),
 
               const SizedBox(height: AppSpacing.spacing32),
 
               // Seção Vídeos
-              _buildUploadSection(
-                title: 'Vídeos',
-                description: 'Envie pelos menos 2 vídeos\ndo seu trabalho',
-                buttonText: 'Selecionar do dispositivo',
-                allowedFormats: 'Arquivos em MP4, MOV ou AVI (Tamanho máximo 150Mb)',
-                onSelect: _selectVideos,
-                uploadIconPath: 'assets/icons/cloud_upload.svg', // Reutiliza o ícone
-              ),
+              _buildVideoSection(),
 
               const SizedBox(height: AppSpacing.spacing32),
 
               // Botão Continuar
-               AppButton(
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : AppButton(
                       type: AppButtonType.primary,
                       text: 'Continuar',
-                      onPressed: _continue, // Chama a função final
+                      onPressed: _continue,
                       minWidth: double.infinity,
                     ),
 
@@ -134,62 +342,261 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
     );
   }
 
-  // Widget auxiliar para as seções de upload
-  Widget _buildUploadSection({
-    required String title,
-    required String description,
-    required String buttonText,
-    required String allowedFormats,
-    required VoidCallback onSelect,
-    required String uploadIconPath,
-  }) {
+  // Seção de Fotos
+  Widget _buildPhotoSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral800),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Fotos',
+              style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral800),
+            ),
+            Text(
+              '${_selectedPhotos.length}/$maxPhotos',
+              style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral600),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.spacing16),
-        // Container tracejado - Usando Container normal como fallback
-        // Para tracejado real, use o pacote dotted_border:
-        // DottedBorder(
-        //   color: AppColors.Neutral.neutral300,
-        //   strokeWidth: 1,
-        //   dashPattern: const [6, 4], // Ajuste o padrão do tracejado
-        //   radius: AppRadius.radius12.topLeft, // Usar topLeft ou all()?
-        //   borderType: BorderType.RRect,
-        //   child: _buildUploadContent(...)
-        // )
-         Container(
-           padding: const EdgeInsets.symmetric(
-             vertical: AppSpacing.spacing24,
-             horizontal: AppSpacing.spacing16,
-           ),
-           decoration: BoxDecoration(
-             color: AppColorsNeutral.neutral50, // Fundo cinza claro
-             borderRadius: BorderRadius.circular(AppSpacing.spacing12),
-             border: Border.all(color: AppColorsNeutral.neutral200), // Borda sólida como fallback
-           ),
-           child: _buildUploadContent(
-             uploadIconPath: uploadIconPath,
-             description: description,
-             buttonText: buttonText,
-             onSelect: onSelect,
-           ),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.spacing16),
+          decoration: BoxDecoration(
+            color: AppColorsNeutral.neutral50,
+            borderRadius: AppRadius.radius12,
+            border: Border.all(
+              color: AppColorsNeutral.neutral300,
+              width: 1,
+              style: BorderStyle.solid,
+            ),
+          ),
+            child: _selectedPhotos.isEmpty
+                ? _buildUploadPrompt(
+                    description: 'Envie de $minPhotos a $maxPhotos fotos\ndo seu trabalho',
+                    buttonText: 'Selecionar do dispositivo',
+                    onSelect: _selectPhotos,
+                  )
+              : _buildPhotoGrid(),
         ),
         const SizedBox(height: AppSpacing.spacing8),
         Text(
-          allowedFormats,
+          'Arquivos em PNG ou JPG (Tamanho máximo ${maxPhotoSizeMB}MB)',
           style: AppTypography.footnoteRegular.copyWith(color: AppColorsNeutral.neutral500),
         ),
       ],
     );
   }
 
-  // Conteúdo interno da área de upload
-  Widget _buildUploadContent({
-    required String uploadIconPath,
+  // Seção de Vídeos
+  Widget _buildVideoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Vídeos',
+              style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral800),
+            ),
+            Text(
+              '${_selectedVideos.length}/$maxVideos',
+              style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral600),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.spacing16),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.spacing16),
+          decoration: BoxDecoration(
+            color: AppColorsNeutral.neutral50,
+            borderRadius: AppRadius.radius12,
+            border: Border.all(
+              color: AppColorsNeutral.neutral300,
+              width: 1,
+              style: BorderStyle.solid,
+            ),
+          ),
+            child: _selectedVideos.isEmpty
+                ? _buildUploadPrompt(
+                    description: 'Envie de $minVideos a $maxVideos vídeos\ndo seu trabalho',
+                    buttonText: 'Selecionar do dispositivo',
+                    onSelect: _selectVideos,
+                  )
+              : _buildVideoList(),
+        ),
+        const SizedBox(height: AppSpacing.spacing8),
+        Text(
+          'Arquivos em MP4, MOV ou AVI (Tamanho máximo ${maxVideoSizeMB}MB)',
+          style: AppTypography.footnoteRegular.copyWith(color: AppColorsNeutral.neutral500),
+        ),
+      ],
+    );
+  }
+
+  // Grid de preview de fotos
+  Widget _buildPhotoGrid() {
+    return Column(
+      children: [
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: AppSpacing.spacing8,
+            mainAxisSpacing: AppSpacing.spacing8,
+          ),
+          itemCount: _selectedPhotos.length,
+          itemBuilder: (context, index) {
+            return Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: AppRadius.radius8,
+                  child: Image.file(
+                    File(_selectedPhotos[index].path),
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: GestureDetector(
+                    onTap: () => _removePhoto(index),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColorsError.error600,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: AppColorsNeutral.neutral0,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        if (_selectedPhotos.length < maxPhotos) ...[
+          const SizedBox(height: AppSpacing.spacing12),
+          ElevatedButton.icon(
+            icon: SvgPicture.asset(
+              'assets/icons/upload_file.svg',
+              height: 16,
+              colorFilter: ColorFilter.mode(AppColorsNeutral.neutral0, BlendMode.srcIn),
+            ),
+            label: Text(
+              'Adicionar mais fotos',
+              style: AppTypography.captionBold.copyWith(color: AppColorsNeutral.neutral0),
+            ),
+            onPressed: _selectPhotos,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColorsPrimary.primary800,
+              foregroundColor: AppColorsNeutral.neutral0,
+              shape: RoundedRectangleBorder(borderRadius: AppRadius.radius8),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing16, vertical: AppSpacing.spacing8),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // Lista de preview de vídeos
+  Widget _buildVideoList() {
+    return Column(
+      children: [
+        ...List.generate(_selectedVideos.length, (index) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.spacing8),
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.spacing12),
+              decoration: BoxDecoration(
+                color: AppColorsNeutral.neutral100,
+                borderRadius: AppRadius.radius8,
+                border: Border.all(color: AppColorsNeutral.neutral200),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppColorsPrimary.primary100,
+                      borderRadius: AppRadius.radius8,
+                    ),
+                    child: const Icon(
+                      Icons.videocam,
+                      color: AppColorsPrimary.primary700,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.spacing12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedVideos[index].name,
+                          style: AppTypography.captionMedium.copyWith(
+                            color: AppColorsNeutral.neutral900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Vídeo ${index + 1}',
+                          style: AppTypography.footnoteRegular.copyWith(
+                            color: AppColorsNeutral.neutral600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: AppColorsError.error600),
+                    onPressed: () => _removeVideo(index),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+        if (_selectedVideos.length < maxVideos) ...[
+          const SizedBox(height: AppSpacing.spacing12),
+          ElevatedButton.icon(
+            icon: SvgPicture.asset(
+              'assets/icons/upload_file.svg',
+              height: 16,
+              colorFilter: ColorFilter.mode(AppColorsNeutral.neutral0, BlendMode.srcIn),
+            ),
+            label: Text(
+              'Adicionar mais vídeos',
+              style: AppTypography.captionBold.copyWith(color: AppColorsNeutral.neutral0),
+            ),
+            onPressed: _selectVideos,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColorsPrimary.primary800,
+              foregroundColor: AppColorsNeutral.neutral0,
+              shape: RoundedRectangleBorder(borderRadius: AppRadius.radius8),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing16, vertical: AppSpacing.spacing8),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // Prompt de upload
+  Widget _buildUploadPrompt({
     required String description,
     required String buttonText,
     required VoidCallback onSelect,
@@ -199,7 +606,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SvgPicture.asset(
-            uploadIconPath,
+            'assets/icons/cloud_upload.svg',
             height: 32,
             width: 32,
             colorFilter: ColorFilter.mode(AppColorsNeutral.neutral400, BlendMode.srcIn),
@@ -211,12 +618,11 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
             style: AppTypography.captionRegular.copyWith(color: AppColorsNeutral.neutral600),
           ),
           const SizedBox(height: AppSpacing.spacing16),
-          // Botão interno para selecionar
           ElevatedButton.icon(
             icon: SvgPicture.asset(
-              'assets/icons/upload_file.svg', // Use um ícone apropriado (ou Icon)
+              'assets/icons/upload_file.svg',
               height: 16,
-               colorFilter: ColorFilter.mode(AppColorsNeutral.neutral0, BlendMode.srcIn),
+              colorFilter: ColorFilter.mode(AppColorsNeutral.neutral0, BlendMode.srcIn),
             ),
             label: Text(
               buttonText,
@@ -224,10 +630,10 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
             ),
             onPressed: onSelect,
             style: ElevatedButton.styleFrom(
-               backgroundColor: AppColorsPrimary.primary800, // Cor do botão interno
-               foregroundColor: AppColorsNeutral.neutral0,
-               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.spacing8)),
-               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing16, vertical: AppSpacing.spacing8),
+              backgroundColor: AppColorsPrimary.primary800,
+              foregroundColor: AppColorsNeutral.neutral0,
+              shape: RoundedRectangleBorder(borderRadius: AppRadius.radius8),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing16, vertical: AppSpacing.spacing8),
             ),
           ),
         ],

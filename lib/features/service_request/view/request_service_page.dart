@@ -7,6 +7,10 @@ import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_dropdown_field.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/features/service_request/view/request_success_page.dart'; // Importar tela de sucesso
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:trabalheja/core/widgets/app_map.dart';
 
 class RequestServicePage extends StatefulWidget {
   const RequestServicePage({super.key});
@@ -23,6 +27,13 @@ class _RequestServicePageState extends State<RequestServicePage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   String? _selectedTimeUnit = 'Horas';
+  final _supabase = Supabase.instance.client;
+
+  // Mapa
+  static const LatLng _fallbackCenter = LatLng(-23.6975, -46.6953);
+  final AppMapController _mapController = AppMapController();
+  LatLng _mapCenter = _fallbackCenter;
+  bool _isLoadingLocation = false;
 
   final List<DropdownItem<String>> _timeOptions = [
     DropdownItem(value: 'Horas', label: 'Horas'),
@@ -40,25 +51,112 @@ class _RequestServicePageState extends State<RequestServicePage> {
     super.dispose();
   }
 
-  void _submitRequest() {
-     if (!(_formKey.currentState?.validate() ?? false)) return;
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isLoadingLocation = true);
+    try {
+      final hasPermission = await _ensureLocationPermission();
+      if (!hasPermission) return;
+      final Position pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final LatLng current = LatLng(pos.latitude, pos.longitude);
+      _mapController.moveToLocation(current, zoom: 15);
+      setState(() {
+        _mapCenter = current;
+      });
+    } catch (_) {
+      // Silenciar erro e manter fallback
+    } finally {
+      if (mounted) setState(() => _isLoadingLocation = false);
+    }
+  }
 
-     setState(() => _isLoading = true);
-     // TODO: Implementar lógica de envio da solicitação (ex: Supabase)
-     print('Solicitando serviço...');
-     print('Serviço: ${_serviceController.text}');
-     print('Orçamento: ${_budgetController.text}');
-     print('Tempo: ${_timeValueController.text} ${_selectedTimeUnit}');
-     print('Info: ${_infoController.text}');
+  Future<bool> _ensureLocationPermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return false;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return false;
+    }
+    if (permission == LocationPermission.deniedForever) return false;
+    return true;
+  }
 
-     Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) setState(() => _isLoading = false);
-        // Navegar para a tela de sucesso
-        Navigator.pushReplacement( // Substitui a tela atual pela de sucesso
-          context,
-          MaterialPageRoute(builder: (context) => const RequestSuccessPage()),
-        );
-     });
+  int _convertToHours(int value, String unit) {
+    switch (unit) {
+      case 'Horas':
+        return value;
+      case 'Dias':
+        return value * 24;
+      case 'Semanas':
+        return value * 7 * 24;
+      case 'Meses':
+        return value * 30 * 24; // aproximação
+      default:
+        return value;
+    }
+  }
+
+  double _parseBudget(String input) {
+    final sanitized = input
+        .replaceAll(RegExp(r'[^0-9,\.]'), '')
+        .replaceAll('.', '')
+        .replaceAll(',', '.');
+    return double.tryParse(sanitized) ?? 0.0;
+  }
+
+  Future<void> _submitRequest() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    // Pegar centro atual do mapa (se disponível no controller)
+    final LatLng center = _mapController.currentCenter ?? _mapCenter;
+
+    if (center.latitude.isNaN || center.longitude.isNaN) {
+      return; // Falha silenciosa, mas idealmente exibir mensagem ao usuário
+    }
+
+    final String serviceDesc = _serviceController.text.trim();
+    final double budget = _parseBudget(_budgetController.text.trim());
+    final int? timeValue = int.tryParse(_timeValueController.text.trim());
+    final String unit = _selectedTimeUnit ?? 'Horas';
+    final int deadlineHours = _convertToHours(timeValue ?? 0, unit);
+    final String? additionalInfo = _infoController.text.trim().isEmpty
+        ? null
+        : _infoController.text.trim();
+
+    if (budget <= 0 || (timeValue == null || timeValue <= 0)) {
+      return; // Ideal: exibir feedback de validação
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      await _supabase.from('service_requests').insert({
+        'client_id': user.id,
+        'service_description': serviceDesc,
+        'budget': budget,
+        'deadline_hours': deadlineHours,
+        'additional_info': additionalInfo,
+        'service_latitude': center.latitude,
+        'service_longitude': center.longitude,
+        'status': 'pending',
+      });
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const RequestSuccessPage()),
+      );
+    } catch (_) {
+      // Ideal: exibir modal de erro
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
 
@@ -92,6 +190,43 @@ class _RequestServicePageState extends State<RequestServicePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const SizedBox(height: AppSpacing.spacing16),
+                // Localização no mapa
+                Text(
+                  'Localização do serviço',
+                  style: AppTypography.captionMedium.copyWith(
+                    color: AppColorsPrimary.primary950,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.spacing8),
+                Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                    borderRadius: AppRadius.radius12,
+                    border: Border.all(color: AppColorsNeutral.neutral200),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: AppMap(
+                    center: _mapCenter,
+                    radius: 30,
+                    initialZoom: 14,
+                    isInteractive: true,
+                    controller: _mapController,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.spacing8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        text: _isLoadingLocation ? 'Localizando...' : 'Usar minha localização',
+                        onPressed: _isLoadingLocation ? null : _useCurrentLocation,
+                        minWidth: double.infinity,
+                        type: AppButtonType.secondary,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: AppSpacing.spacing16),
                 Text(
                   'Solicitar serviço',

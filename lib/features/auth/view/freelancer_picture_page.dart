@@ -43,13 +43,36 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
         imageQuality: 80, // Comprimir um pouco a imagem
       );
       if (pickedFile != null) {
+        // Validar tamanho (máximo 10MB)
+        final file = File(pickedFile.path);
+        final sizeInMB = await file.length() / (1024 * 1024);
+        const maxSizeMB = 10;
+        
+        if (sizeInMB > maxSizeMB) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('A foto excede o tamanho máximo de ${maxSizeMB}MB.'),
+                backgroundColor: AppColorsError.error600,
+              ),
+            );
+          }
+          return;
+        }
+
         setState(() {
           _imageFile = pickedFile;
         });
       }
     } catch (e) {
-      print('Erro ao selecionar imagem: $e');
-      // Mostrar SnackBar de erro
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao selecionar imagem: ${e.toString()}'),
+            backgroundColor: AppColorsError.error600,
+          ),
+        );
+      }
     }
   }
 
