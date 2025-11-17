@@ -7,7 +7,7 @@ import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
-import 'package:trabalheja/core/widgets/MainAppShell.dart';
+import 'package:trabalheja/core/auth/auth_state_notifier.dart';
 import 'package:trabalheja/features/auth/view/reset_password_request_page.dart';
 
 class EmailLoginPage extends StatefulWidget { // Alterado para StatefulWidget
@@ -52,13 +52,28 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
 
       if (!mounted) return;
 
-      if (response.user != null) {
-        // Login bem-sucedido - o app.dart detectará a mudança de estado
-        // e navegará automaticamente para MainAppShell
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const MainAppShell()),
-          (route) => false, // Remove todas as rotas anteriores
-        );
+      if (response.user != null && response.session != null) {
+        // Login bem-sucedido - a resposta já contém a sessão
+        // Notificar mudança de autenticação imediatamente
+        final authNotifier = AuthStateNotifier();
+        authNotifier.value = response.session;
+        
+        // Aguardar um momento para garantir que o Supabase atualizou currentSession
+        await Future.delayed(const Duration(milliseconds: 50));
+        
+        // Notificar novamente para garantir que o AuthWrapper detecte
+        authNotifier.notifyAuthChange();
+        
+        // IMPORTANTE: Remover todas as rotas de login da pilha de navegação
+        // Isso permite que o AuthWrapper (home do MaterialApp) seja exibido
+        // O AuthWrapper detectará a mudança de sessão e mostrará MainAppShell
+        if (mounted) {
+          // Remover todas as rotas até a primeira (AuthWrapper)
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+        
+        // O AuthWrapper detectará automaticamente a mudança de estado
+        // e exibirá o MainAppShell
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

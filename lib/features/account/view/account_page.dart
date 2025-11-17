@@ -6,10 +6,13 @@ import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/account/view/support_page.dart';
-import 'package:trabalheja/features/auth/view/welcome_page.dart';
+import 'package:trabalheja/core/auth/auth_state_notifier.dart';
 import 'profile_data_page.dart'; // Importar a nova página
 import 'security_password_page.dart'; // Importar a nova página
 import 'faq_page.dart';
+import 'addresses_page.dart';
+import 'terms_of_service_page.dart';
+import 'privacy_policy_page.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -234,21 +237,36 @@ class _AccountPageState extends State<AccountPage> {
             ),
             _buildListTile(
               context: context,
-              iconPath: 'assets/icons/location_pin.svg', // Use o ícone correto
+              iconPath: 'assets/icons/location_pin.svg',
               title: 'Endereços',
-              onTap: () { /* TODO: Navegar */ },
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddressesPage()),
+                );
+              },
             ),
             _buildListTile(
               context: context,
-              iconPath: 'assets/icons/document.svg', // Use o ícone correto
+              iconPath: 'assets/icons/document.svg',
               title: 'Termos de uso',
-              onTap: () { /* TODO: Navegar */ },
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+                );
+              },
             ),
             _buildListTile(
               context: context,
-              iconPath: 'assets/icons/policy.svg', // Use o ícone correto
+              iconPath: 'assets/icons/policy.svg',
               title: 'Política de privacidade',
-              onTap: () { /* TODO: Navegar */ },
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
+                );
+              },
             ),
           ],
         ),
@@ -295,18 +313,64 @@ class _AccountPageState extends State<AccountPage> {
  Widget _buildLogoutButton(BuildContext context) {
     return InkWell(
       onTap: () async {
+        // Mostrar diálogo de confirmação
+        final shouldLogout = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              'Sair da conta',
+              style: AppTypography.highlightBold.copyWith(
+                color: AppColorsNeutral.neutral900,
+              ),
+            ),
+            content: Text(
+              'Tem certeza que deseja sair da sua conta?',
+              style: AppTypography.contentRegular.copyWith(
+                color: AppColorsNeutral.neutral700,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(
+                  'Cancelar',
+                  style: AppTypography.contentMedium.copyWith(
+                    color: AppColorsNeutral.neutral600,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(
+                  'Sair',
+                  style: AppTypography.contentMedium.copyWith(
+                    color: AppColorsError.error600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldLogout != true) return;
+
         try {
+          // Limpar dados da sessão e fazer logout
           await _supabase.auth.signOut();
-          if (context.mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const WelcomePage()),
-              (route) => false,
-            );
-          }
+          
+          // Notificar mudança de autenticação para forçar atualização
+          final authNotifier = AuthStateNotifier();
+          authNotifier.notifyAuthChange();
+          
+          // O AuthWrapper detectará automaticamente a mudança de estado
+          // e redirecionará para LoginPage
         } catch (e) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Erro ao sair: ${e.toString()}')),
+              SnackBar(
+                content: Text('Erro ao sair: ${e.toString()}'),
+                backgroundColor: AppColorsError.error600,
+              ),
             );
           }
         }

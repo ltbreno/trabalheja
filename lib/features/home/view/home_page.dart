@@ -70,11 +70,6 @@ class _HomePageState extends State<HomePage> {
     return fullName[0].toUpperCase();
   }
 
-  String _getAccountTypeLabel(String? accountType) {
-    if (accountType == null) return 'Usuário';
-    return accountType == 'client' ? 'Cliente' : 'Freelancer';
-  }
-
   @override
   Widget build(BuildContext context) {
     final accountType = _profileData?['account_type'] as String?;
@@ -153,7 +148,6 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildProfileHeader() {
     final fullName = _profileData?['full_name'] as String?;
-    final accountType = _profileData?['account_type'] as String?;
     final profilePictureUrl = _profileData?['profile_picture_url'] as String?;
     
     // Usar o nome completo se disponível, caso contrário usar primeiro nome ou fallback
@@ -169,7 +163,6 @@ class _HomePageState extends State<HomePage> {
     }
     
     final initials = _getInitials(fullName);
-    final accountTypeLabel = _getAccountTypeLabel(accountType);
 
     return Row(
       children: [
@@ -191,7 +184,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Bem-vindo de volta,',
+              'Bem-vindo,',
               style: AppTypography.captionRegular.copyWith(color: AppColorsNeutral.neutral600),
             ),
             Text(
@@ -199,21 +192,6 @@ class _HomePageState extends State<HomePage> {
               style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral900),
             ),
           ],
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.spacing12,
-            vertical: AppSpacing.spacing4,
-          ),
-          decoration: BoxDecoration(
-            color: AppColorsPrimary.primary100.withOpacity(0.5),
-            borderRadius: AppRadius.radius6,
-          ),
-          child: Text(
-            accountTypeLabel,
-            style: AppTypography.captionBold.copyWith(color: AppColorsPrimary.primary700),
-          ),
         ),
       ],
     );
