@@ -6,13 +6,19 @@ workflows:
 
     environment:
 
-      flutter: 3.27.3
+      flutter: stable
 
       xcode: 16.2
 
     scripts:
 
-      - flutter build ios --simulator --flavor staging  # --flavor is optional
+      - name: Install dependencies
+        script: |
+          flutter pub get
+      
+      - name: Build iOS Simulator
+        script: |
+          flutter build ios --simulator --flavor staging
 
     artifacts:
 
