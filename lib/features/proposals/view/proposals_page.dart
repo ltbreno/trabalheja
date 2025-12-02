@@ -10,7 +10,9 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/core/utils/distance_calculator.dart' as distance_util;
 import 'package:trabalheja/core/widgets/error_modal.dart';
 import 'package:trabalheja/features/proposals/widgets/received_proposal_card.dart';
+import 'package:trabalheja/features/proposals/widgets/accepted_proposal_card.dart';
 import 'package:trabalheja/features/proposals/widgets/sent_proposal_card.dart' show SentProposalCard, ProposalStatus;
+import 'package:trabalheja/features/payment/view/create_payment_page_improved.dart';
 
 class ProposalsPage extends StatefulWidget {
   const ProposalsPage({super.key});
@@ -560,7 +562,41 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           final price = proposal['proposed_price'] as num? ?? 0;
                           final availabilityValue = proposal['availability_value'] as int? ?? 0;
                           final availabilityUnit = proposal['availability_unit'] as String? ?? 'Horas';
+                          final status = proposal['status'] as String?;
+                          final serviceRequestId = proposal['service_request_id'] as String;
+                          final proposalId = proposal['id'] as String;
                           
+                          // Se a proposta foi aceita, mostrar card especial com botão de pagamento
+                          if (status == 'accepted') {
+                            return AcceptedProposalCard(
+                              name: freelancerName,
+                              location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                              price: _formatCurrency(price.toDouble()),
+                              timeframe: 'Em até $availabilityValue $availabilityUnit',
+                              onPay: () {
+                                // Navegar para tela de pagamento
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => CreatePaymentPageImproved(
+                                      serviceRequestId: serviceRequestId,
+                                      proposalId: proposalId,
+                                    ),
+                                  ),
+                                );
+                              },
+                              onChat: () {
+                                // TODO: Navegar para chat
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Chat em desenvolvimento'),
+                                  ),
+                                );
+                              },
+                            );
+                          }
+                          
+                          // Proposta pendente - mostrar botões de aceitar/rejeitar
                           return ReceivedProposalCard(
                             name: freelancerName,
                             location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',

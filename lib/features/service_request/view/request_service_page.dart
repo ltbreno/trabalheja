@@ -222,7 +222,7 @@ class _RequestServicePageState extends State<RequestServicePage> {
                         text: _isLoadingLocation ? 'Localizando...' : 'Usar minha localização',
                         onPressed: _isLoadingLocation ? null : _useCurrentLocation,
                         minWidth: double.infinity,
-                        type: AppButtonType.secondary,
+                        type: AppButtonType.secondary, isLoading: _isLoading,
                       ),
                     ),
                   ],

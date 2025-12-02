@@ -7,6 +7,8 @@ import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/features/payment/service/payment_service.dart';
 import 'package:trabalheja/features/payment/view/card_form_page.dart';
+import 'package:trabalheja/features/payment/view/payment_success_page.dart';
+import 'package:trabalheja/features/payment/view/payment_failure_page.dart';
 import 'package:trabalheja/core/constants/pagarme_config.dart';
 
 class CreatePaymentPage extends StatefulWidget {
@@ -27,7 +29,10 @@ class CreatePaymentPage extends StatefulWidget {
 
 class _CreatePaymentPageState extends State<CreatePaymentPage> {
   final _amountController = TextEditingController();
-  final _cardHashController = TextEditingController();
+  final _cardTokenController = TextEditingController();
+  final _customerNameController = TextEditingController();
+  final _customerEmailController = TextEditingController();
+  final _customerDocumentController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final _paymentService = PaymentService();
   bool _isLoading = false;
@@ -47,7 +52,10 @@ class _CreatePaymentPageState extends State<CreatePaymentPage> {
   @override
   void dispose() {
     _amountController.dispose();
-    _cardHashController.dispose();
+    _cardTokenController.dispose();
+    _customerNameController.dispose();
+    _customerEmailController.dispose();
+    _customerDocumentController.dispose();
     super.dispose();
   }
 
@@ -67,7 +75,7 @@ class _CreatePaymentPageState extends State<CreatePaymentPage> {
 
     if (cardHash != null && mounted) {
       setState(() {
-        _cardHashController.text = cardHash;
+        _cardTokenController.text = cardHash; // cardHash agora é cardToken
       });
     }
   }
@@ -84,19 +92,31 @@ class _CreatePaymentPageState extends State<CreatePaymentPage> {
       final amountInReais = double.parse(_amountController.text.replaceAll(',', '.'));
       final amountInCents = (amountInReais * 100).toInt();
 
-      var cardHash = _cardHashController.text.trim();
-      if (cardHash.isEmpty) {
+      var cardToken = _cardTokenController.text.trim();
+      if (cardToken.isEmpty) {
         throw Exception('Por favor, adicione os dados do cartão primeiro');
       }
 
-      print('📡 Tentando processar pagamento com card_hash existente...');
+      // Validar dados do cliente
+      final customerName = _customerNameController.text.trim();
+      final customerEmail = _customerEmailController.text.trim();
+      final customerDocument = _customerDocumentController.text.trim();
 
-      // Tentar processar com o hash existente
+      if (customerName.isEmpty || customerEmail.isEmpty || customerDocument.isEmpty) {
+        throw Exception('Por favor, preencha todos os dados do cliente');
+      }
+
+      print('📡 Tentando processar pagamento com card_token...');
+
+      // Processar pagamento com os novos campos
       Map<String, dynamic> result;
       try {
         result = await _paymentService.createPayment(
           amount: amountInCents,
-          cardHash: cardHash,
+          cardToken: cardToken,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          customerDocument: customerDocument,
         );
       } catch (e) {
         // Se der erro de chave inválida, pode ser que o hash expirou
@@ -119,13 +139,13 @@ class _CreatePaymentPageState extends State<CreatePaymentPage> {
                 label: 'Regenerar',
                 textColor: Colors.white,
                 onPressed: () async {
-                  // Limpar hash antigo e abrir formulário novamente
+                  // Limpar token antigo e abrir formulário novamente
                   setState(() {
-                    _cardHashController.clear();
+                    _cardTokenController.clear();
                   });
                   await _openCardForm();
                   // Após gerar novo hash, processar automaticamente
-                  if (_cardHashController.text.isNotEmpty) {
+                  if (_cardTokenController.text.isNotEmpty) {
                     await _createPayment();
                   }
                 },
@@ -141,33 +161,64 @@ class _CreatePaymentPageState extends State<CreatePaymentPage> {
       if (!mounted) return;
 
       // Exibir resultado
-      print('✅ Pagamento criado com sucesso: $result');
+      print('✅ Resposta da API recebida: $result');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Pagamento processado com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Extrair dados do resultado
+      final paymentData = result['data'] as Map<String, dynamic>?;
+      final paymentStatus = paymentData?['status'] as String?;
+      final orderId = paymentData?['pagarme_order_id'] as String?;
+      final paymentId = paymentData?['payment_id']?.toString();
+      
+      print('📊 Status do pagamento: $paymentStatus');
 
-      // Você pode navegar para uma página de sucesso ou voltar
-      Navigator.pop(context, result);
+      // Verificar o status do pagamento
+      if (paymentStatus == 'paid') {
+        // ✅ SUCESSO - Pagamento aprovado
+        print('✅ Pagamento aprovado! Redirecionando para tela de sucesso...');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => PaymentSuccessPage(
+              amount: amountInReais,
+              orderId: orderId,
+              paymentId: paymentId,
+            ),
+          ),
+        );
+      } else {
+        // ❌ FALHA - Status diferente de 'paid' (failed, pending, etc.)
+        print('❌ Pagamento não aprovado (status: $paymentStatus). Redirecionando para tela de falha...');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => PaymentFailurePage(
+              errorMessage: paymentStatus == 'failed' 
+                  ? 'Pagamento recusado. Verifique os dados do cartão.'
+                  : 'Falha ao processar o pagamento',
+            ),
+          ),
+        );
+      }
     } on FunctionException catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao processar pagamento: ${e.toString()}'),
-          backgroundColor: Colors.red,
+      print('❌ Erro ao processar pagamento: $e');
+
+      // Navegar para tela de falha
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => PaymentFailurePage(
+            errorMessage: e.toString(),
+          ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao criar pagamento: ${e.toString()}'),
-          backgroundColor: Colors.red,
+      print('❌ Erro ao criar pagamento: $e');
+
+      // Navegar para tela de falha
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const PaymentFailurePage(),
         ),
       );
     } finally {
@@ -245,15 +296,15 @@ class _CreatePaymentPageState extends State<CreatePaymentPage> {
 
                 const SizedBox(height: AppSpacing.spacing24),
 
-                // Campo de Card Hash (com botão para coletar dados do cartão)
+                // Campo de Card Token (com botão para coletar dados do cartão)
                 GestureDetector(
                   onTap: _openCardForm,
                   child: AppTextField(
                     label: 'Dados do Cartão',
-                    hintText: _cardHashController.text.isEmpty
+                    hintText: _cardTokenController.text.isEmpty
                         ? 'Clique para adicionar dados do cartão'
                         : 'Cartão processado ✓',
-                    controller: _cardHashController,
+                    controller: _cardTokenController,
                     prefixIconPath: 'assets/icons/credit_card.svg',
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -276,6 +327,77 @@ class _CreatePaymentPageState extends State<CreatePaymentPage> {
                       decorationColor: AppColorsPrimary.primary800,
                     ),
                   ),
+                ),
+
+                const SizedBox(height: AppSpacing.spacing24),
+
+                // Dados do Cliente
+                Text(
+                  'Dados do Cliente',
+                  style: AppTypography.heading4.copyWith(
+                    color: AppColorsNeutral.neutral900,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.spacing16),
+
+                // Campo Nome do Cliente
+                AppTextField(
+                  label: 'Nome Completo',
+                  hintText: 'João Silva',
+                  controller: _customerNameController,
+                  prefixIconPath: 'assets/icons/user.svg',
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, informe o nome completo';
+                    }
+                    if (value.length < 2) {
+                      return 'Nome deve ter pelo menos 2 caracteres';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: AppSpacing.spacing16),
+
+                // Campo Email do Cliente
+                AppTextField(
+                  label: 'Email',
+                  hintText: 'joao@email.com',
+                  controller: _customerEmailController,
+                  prefixIconPath: 'assets/icons/mail.svg',
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, informe o email';
+                    }
+                    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                    if (!emailRegex.hasMatch(value)) {
+                      return 'Email inválido';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: AppSpacing.spacing16),
+
+                // Campo CPF do Cliente
+                AppTextField(
+                  label: 'CPF',
+                  hintText: '123.456.789-00',
+                  controller: _customerDocumentController,
+                  prefixIconPath: 'assets/icons/id_card.svg',
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, informe o CPF';
+                    }
+                    // Validação básica de CPF (11 dígitos)
+                    final cpfRegex = RegExp(r'^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$');
+                    if (!cpfRegex.hasMatch(value)) {
+                      return 'CPF inválido (formato: 123.456.789-00)';
+                    }
+                    return null;
+                  },
                 ),
 
                 const SizedBox(height: AppSpacing.spacing24),

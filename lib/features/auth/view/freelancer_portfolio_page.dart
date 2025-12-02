@@ -331,7 +331,8 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
                       type: AppButtonType.primary,
                       text: 'Continuar',
                       onPressed: _continue,
-                      minWidth: double.infinity,
+                      minWidth: double.infinity,    
+                      isLoading: _isLoading,
                     ),
 
               const SizedBox(height: AppSpacing.spacing16), // Espaço inferior

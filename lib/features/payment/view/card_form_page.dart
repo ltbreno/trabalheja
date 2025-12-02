@@ -52,10 +52,14 @@ class _CardFormPageState extends State<CardFormPage> {
   @override
   void initState() {
     super.initState();
-    // Usa encryption key fornecida ou a padrão da configuração
+    // Usa encryption key e secret key da configuração
     final encryptionKey = widget.encryptionKey ?? PagarmeConfig.encryptionKey;
-    _pagarmeService = PagarmeService(encryptionKey: encryptionKey);
-    
+    final secretKey = PagarmeConfig.secretKey;
+    _pagarmeService = PagarmeService(
+      encryptionKey: encryptionKey,
+      secretKey: secretKey,
+    );
+
     // Detectar bandeira do cartão enquanto digita
     _cardNumberController.addListener(_detectCardBrand);
   }
@@ -77,7 +81,7 @@ class _CardFormPageState extends State<CardFormPage> {
     });
   }
 
-  Future<void> _generateCardHash() async {
+  Future<void> _generateCardToken() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -88,32 +92,38 @@ class _CardFormPageState extends State<CardFormPage> {
       // Remover formatação dos dados
       final cardNumber = _cardNumberController.text.replaceAll(RegExp(r'[^0-9]'), '');
       final cardHolderName = _cardHolderNameController.text.trim();
-      
+
       // Converter data de MM/YY para MMYY
       final expirationParts = _cardExpirationController.text.split('/');
       final cardExpirationDate = expirationParts.length == 2
           ? '${expirationParts[0]}${expirationParts[1]}'
           : _cardExpirationController.text.replaceAll(RegExp(r'[^0-9]'), '');
-      
+
       final cardCvv = _cardCvvController.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-      // Gerar card_hash
-      final cardHash = await _pagarmeService.generateCardHash(
+      // Criar card_token
+      print('🔑 Criando card_token...');
+      final tokenResponse = await _pagarmeService.createCardToken(
         cardNumber: cardNumber,
         cardHolderName: cardHolderName,
         cardExpirationDate: cardExpirationDate,
         cardCvv: cardCvv,
+        cardHolderDocument: null, // Será usado valor padrão
       );
+
+      if (!tokenResponse.success) {
+        throw Exception(tokenResponse.error ?? 'Erro ao criar token do cartão');
+      }
 
       if (!mounted) return;
 
       // Callback ou retornar resultado
       if (widget.onCardHashGenerated != null) {
-        widget.onCardHashGenerated!(cardHash);
+        widget.onCardHashGenerated!(tokenResponse.cardToken!.id);
       }
 
-      Navigator.pop(context, cardHash);
-      
+      Navigator.pop(context, tokenResponse.cardToken!.id);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Cartão processado com sucesso!'),
@@ -124,7 +134,7 @@ class _CardFormPageState extends State<CardFormPage> {
       if (!mounted) return;
 
       // Log detalhado do erro para debug
-      print('❌ ERRO ao gerar card_hash:');
+      print('❌ ERRO ao criar card_token:');
       print('   Tipo: ${e.runtimeType}');
       print('   Mensagem: ${e.toString()}');
       print('   StackTrace: ${StackTrace.current}');
@@ -132,16 +142,14 @@ class _CardFormPageState extends State<CardFormPage> {
       // Extrair mensagem de erro mais amigável
       String errorMessage = 'Erro ao processar cartão.';
       final errorStr = e.toString().toLowerCase();
-      
-      if (errorStr.contains('encryption_key') || errorStr.contains('encryption')) {
-        errorMessage = 'Chave de criptografia inválida. Verifique as configurações do Pagar.me.';
-      } else if (errorStr.contains('401') || errorStr.contains('unauthorized')) {
-        errorMessage = 'Chave de API inválida ou expirada. Verifique as credenciais do Pagar.me.';
+
+      if (errorStr.contains('api_key') || errorStr.contains('unauthorized') || errorStr.contains('401')) {
+        errorMessage = 'Erro de autenticação com o Pagar.me. Verifique as chaves de API.';
       } else if (errorStr.contains('400') || errorStr.contains('bad request')) {
         errorMessage = 'Dados do cartão inválidos. Verifique os dados informados.';
       } else if (errorStr.contains('404') || errorStr.contains('not found')) {
-        errorMessage = 'Endpoint não encontrado. Verifique a configuração da API do Pagar.me.';
-      } else if (errorStr.contains('card') && (errorStr.contains('invalid') || errorStr.contains('invalid'))) {
+        errorMessage = 'Serviço temporariamente indisponível. Tente novamente.';
+      } else if (errorStr.contains('card') && errorStr.contains('invalid')) {
         errorMessage = 'Dados do cartão inválidos. Verifique número, validade e CVV.';
       } else {
         errorMessage = 'Erro ao processar cartão: ${e.toString()}';
@@ -325,7 +333,7 @@ class _CardFormPageState extends State<CardFormPage> {
                     ? const Center(child: CircularProgressIndicator())
                     : AppButton.primary(
                         text: 'Processar Cartão',
-                        onPressed: _generateCardHash,
+                        onPressed: _generateCardToken,
                         minWidth: double.infinity,
                       ),
               ],

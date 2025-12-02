@@ -24,7 +24,7 @@ class AppButton extends StatelessWidget {
     this.iconLeftPath,
     this.iconRightPath,
     this.height = 48.0,
-    this.minWidth = double.infinity,
+    this.minWidth = double.infinity, required bool isLoading,
   });
 
   const AppButton.primary({

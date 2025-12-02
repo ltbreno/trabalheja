@@ -8,19 +8,20 @@ import 'package:flutter/foundation.dart';
 class PagarmeConfig {
   /// ID da conta Pagar.me
   /// Usado como recipient_id nas transações
-  static const String accountId = 'acc_nDpNrZLHPnueNRyE';
+  static const String accountId = 'acc_BlZedrRszpsM5g4W';
 
   /// Chave pública do Pagar.me (teste)
   /// Esta é a chave usada para gerar o card_hash no cliente
-  static const String publicKey = 'pk_test_Jne2EkPUPslJbPkV';
+  static const String publicKey = 'pk_test_4Rqd0p3Fp6Ca71D8';
 
-  /// Encryption Key / API Key do Pagar.me
-  /// Esta chave é necessária para gerar o card_hash e autenticar nas APIs
-  /// IMPORTANTE: No Pagar.me, geralmente a encryption_key é diferente da public_key
-  /// Verifique no dashboard do Pagar.me em Configurações → API Keys
-  /// Se você tem uma chave específica de encryption, use-a aqui
-  /// Caso contrário, use a mesma chave que a public_key (mas pode gerar erro 401)
-  static const String encryptionKey = 'pk_test_Jne2EkPUPslJbPkV'; // Usando a mesma por padrão
+  /// Encryption Key / Public Key do Pagar.me
+  /// Esta chave é usada no frontend para gerar card_hash (criptografia RSA)
+  static const String encryptionKey = 'pk_test_4Rqd0p3Fp6Ca71D8';
+
+  /// Secret Key / API Key do Pagar.me para chamadas de API
+  /// Esta chave é usada para criar tokens e processar pagamentos
+  /// IMPORTANTE: Esta chave é secreta e deve ser mantida segura
+  static const String secretKey = 'sk_test_3ac0b0a451164a0a99571febe37dc4f4';
 
   /// Ambiente (test ou live)
   static const String environment = 'test';

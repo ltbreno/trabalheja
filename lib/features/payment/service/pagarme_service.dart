@@ -52,15 +52,19 @@ class CardHashKey {
 /// Serviço para gerar card_hash do Pagar.me
 class PagarmeService {
   final String encryptionKey;
+  final String secretKey;
   final String? backendApiBaseUrl;
 
-  /// Construtor padrão usando a encryption key da configuração
-  /// [encryptionKey] - Chave de encriptação do Pagar.me (para fallback)
+  /// Construtor padrão usando as chaves da configuração
+  /// [encryptionKey] - Chave de encriptação do Pagar.me (public key para card_hash)
+  /// [secretKey] - Chave secreta do Pagar.me (para chamadas de API)
   /// [backendApiBaseUrl] - URL base da API Node.js (usa PagarmeConfig.restApiBaseUrl se não fornecido)
   PagarmeService({
     String? encryptionKey,
+    String? secretKey,
     String? backendApiBaseUrl,
   })  : encryptionKey = encryptionKey ?? PagarmeConfig.encryptionKey,
+        secretKey = secretKey ?? PagarmeConfig.secretKey,
         backendApiBaseUrl = backendApiBaseUrl ?? PagarmeConfig.restApiBaseUrl;
 
   /// Obtém a chave pública RSA do backend Node.js
@@ -426,10 +430,121 @@ class PagarmeService {
     return sum % 10 == 0;
   }
 
+  /// Cria um card_token enviando os dados do cartão para o backend local
+  /// seguindo exatamente a estrutura da API do Pagar.me
+  ///
+  /// [cardNumber] - Número do cartão (apenas números)
+  /// [cardHolderName] - Nome impresso no cartão
+  /// [cardExpirationDate] - Data de validade (MMYY)
+  /// [cardCvv] - Código de segurança
+  /// [cardHolderDocument] - CPF do titular do cartão
+  ///
+  /// Retorna um CardTokenResponse com o token gerado
+  Future<CardTokenResponse> createCardToken({
+    required String cardNumber,
+    required String cardHolderName,
+    required String cardExpirationDate,
+    required String cardCvv,
+    String? cardHolderDocument,
+  }) async {
+    try {
+      print('🔑 Criando card_token via backend local...');
+      print('   Cartão: **** **** **** ${cardNumber.substring(cardNumber.length - 4)}');
+
+      // Dividir data de expiração em mês e ano
+      final expMonth = cardExpirationDate.substring(0, 2);
+      final expYear = cardExpirationDate.substring(2, 4);
+
+      // Identificar bandeira do cartão
+      final cardBrand = getCardBrand(cardNumber) ?? 'Unknown';
+
+      // Preparar payload no formato exato da API do Pagar.me
+      final requestBody = {
+        'card': {
+          'number': cardNumber,
+          'holder_name': cardHolderName,
+          'holder_document': cardHolderDocument ?? '12578693455', // CPF padrão se não fornecido
+          'exp_month': expMonth,
+          'exp_year': expYear,
+          'cvv': cardCvv,
+          'label': cardBrand,
+        },
+        'type': 'card',
+      };
+
+      print('📤 Payload sendo enviado:');
+      print('   ${json.encode(requestBody)}');
+
+      final response = await http.post(
+        Uri.parse('https://api.pagar.me/core/v5/tokens?appId=pk_test_4Rqd0p3Fp6Ca71D8'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode(requestBody),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Timeout ao criar token do cartão (30s)');
+        },
+      );
+
+      print('📡 Resposta do card_token');
+      print('   Status: ${response.statusCode}');
+      print('   Body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        try {
+          final errorData = json.decode(response.body);
+          final errorMessage = errorData['errors']?[0]?['message'] ??
+                             errorData['error'] ??
+                             'Erro desconhecido ao criar token';
+          throw Exception('Erro ao criar token do cartão: $errorMessage');
+        } catch (parseError) {
+          // Se não conseguir fazer parse do JSON, usar resposta bruta
+          throw Exception('Erro ao criar token do cartão: ${response.body}');
+        }
+      }
+
+      final responseData = json.decode(response.body);
+
+      if (responseData['id'] == null) {
+        throw Exception('Token do cartão não foi gerado corretamente');
+      }
+
+      print('✅ Card token criado com sucesso!');
+      print('   Token ID: ${responseData['id']}');
+
+      return CardTokenResponse(
+        success: true,
+        cardToken: CardToken(
+          id: responseData['id'],
+          brand: responseData['brand'] ?? cardBrand,
+          firstDigits: responseData['first_digits'],
+          lastDigits: responseData['last_digits'],
+          valid: responseData['valid'] ?? true,
+        ),
+      );
+
+    } on http.ClientException catch (e) {
+      print('❌ Erro de conexão ao criar token: $e');
+      return CardTokenResponse(
+        success: false,
+        error: 'Erro de conexão com o backend. Verifique se o servidor está rodando em localhost:3000',
+      );
+    } catch (e) {
+      print('❌ Erro ao criar card_token: $e');
+      return CardTokenResponse(
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
+
   /// Identifica a bandeira do cartão pelo número
   static String? getCardBrand(String cardNumber) {
     final digits = cardNumber.replaceAll(RegExp(r'[^0-9]'), '');
-    
+
     if (digits.startsWith('4')) return 'Visa';
     if (digits.startsWith('5') || digits.startsWith('2')) return 'Mastercard';
     if (digits.startsWith('3')) return 'American Express';
@@ -437,8 +552,38 @@ class PagarmeService {
     if (digits.startsWith('50')) return 'Aura';
     if (digits.startsWith('60')) return 'Hipercard';
     if (digits.startsWith('35')) return 'Elo';
-    
+
     return null;
   }
+}
+
+/// Modelo para resposta da criação de card_token
+class CardTokenResponse {
+  final bool success;
+  final CardToken? cardToken;
+  final String? error;
+
+  CardTokenResponse({
+    required this.success,
+    this.cardToken,
+    this.error,
+  });
+}
+
+/// Modelo para dados do card_token
+class CardToken {
+  final String id;
+  final String? brand;
+  final String? firstDigits;
+  final String? lastDigits;
+  final bool valid;
+
+  CardToken({
+    required this.id,
+    this.brand,
+    this.firstDigits,
+    this.lastDigits,
+    required this.valid,
+  });
 }
 

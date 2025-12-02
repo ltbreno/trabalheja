@@ -14,25 +14,33 @@ class PaymentServiceRest {
       : apiBaseUrl = apiBaseUrl ?? PagarmeConfig.restApiBaseUrl;
 
   /// Cria um pagamento usando a API REST Node.js com SDK Pagar.me
-  /// 
+  ///
   /// PASSO 1: Cliente paga → Plataforma retém 100% do valor
-  /// 
+  ///
   /// [amount] - Valor em centavos (ex: 10000 = R$ 100,00)
-  /// [cardHash] - Hash do cartão gerado pelo SDK do Pagar.me
-  /// 
+  /// [cardToken] - Token do cartão gerado pelo Pagar.me
+  /// [customerName] - Nome do cliente
+  /// [customerEmail] - Email do cliente
+  /// [customerDocument] - CPF do cliente
+  ///
   /// Retorna os dados da resposta da API
   Future<Map<String, dynamic>> createPayment({
     required int amount,
-    required String cardHash,
+    required String cardToken,
+    required String customerName,
+    required String customerEmail,
+    required String customerDocument,
   }) async {
     try {
       print('📡 Chamando API REST Node.js...');
       print('   🌐 Base URL: $apiBaseUrl');
       print('   📍 Endpoint: $apiBaseUrl/api/payments');
       print('   amount: $amount');
-      print('   card_hash: ${cardHash.length > 20 ? '${cardHash.substring(0, 20)}...' : cardHash}');
+      print('   card_token: ${cardToken.length > 10 ? '${cardToken.substring(0, 10)}...' : cardToken}');
+      print('   customer_name: $customerName');
+      print('   customer_email: $customerEmail');
       print('   💡 Retenção: 100% na plataforma (split será feito depois)');
-      
+
       final response = await http.post(
         Uri.parse('$apiBaseUrl/api/payments'),
         headers: {
@@ -40,7 +48,10 @@ class PaymentServiceRest {
         },
         body: json.encode({
           'amount': amount,
-          'card_hash': cardHash,
+          'card_token': cardToken,
+          'customer_name': customerName,
+          'customer_email': customerEmail,
+          'customer_document': customerDocument,
         }),
       );
 
@@ -50,8 +61,10 @@ class PaymentServiceRest {
 
       final responseData = json.decode(response.body) as Map<String, dynamic>;
 
-      // Verificar se há erro
-      if (response.statusCode != 200) {
+      // Verificar se é um status de sucesso (200 OK ou 201 Created)
+      final isSuccessStatus = response.statusCode >= 200 && response.statusCode < 300;
+
+      if (!isSuccessStatus) {
         final error = responseData['error'] ?? 'Erro desconhecido';
         final details = responseData['details'];
         
@@ -65,12 +78,18 @@ class PaymentServiceRest {
 
       // Verificar se é sucesso
       if (responseData.containsKey('success') && responseData['success'] == true) {
-        print('✅ Pagamento processado com sucesso');
-        print('   Transaction ID: ${responseData['transaction']?['id']}');
+        final paymentData = responseData['data'] as Map<String, dynamic>?;
+        print('✅ Pagamento processado com sucesso!');
+        print('   💳 Payment ID: ${paymentData?['payment_id']}');
+        print('   🏦 Pagar.me Order ID: ${paymentData?['pagarme_order_id']}');
+        print('   📊 Status: ${paymentData?['status']}');
+        print('   💰 Valor: R\$ ${(paymentData?['amount'] ?? 0) / 100}');
+        print('   📅 Parcelas: ${paymentData?['installments']}x');
         return responseData;
       }
 
       // Se não tem success:true, pode ser que a resposta tenha outro formato
+      print('⚠️ Resposta sem campo "success", retornando dados brutos');
       return responseData;
       
     } on http.ClientException catch (e) {
@@ -106,11 +125,15 @@ class PaymentServiceRest {
 
       final responseData = json.decode(response.body) as Map<String, dynamic>;
 
-      if (response.statusCode != 200) {
+      // Verificar se é um status de sucesso (200 OK ou 201 Created)
+      final isSuccessStatus = response.statusCode >= 200 && response.statusCode < 300;
+
+      if (!isSuccessStatus) {
         final error = responseData['error'] ?? 'Erro desconhecido';
         throw Exception('Erro ao criar recipient: $error');
       }
 
+      print('✅ Recipient criado com sucesso!');
       return responseData;
       
     } catch (e) {

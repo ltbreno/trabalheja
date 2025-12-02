@@ -106,7 +106,7 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : AppButton(
-                        type: AppButtonType.primary,
+                        type: AppButtonType.primary, 
                         text: 'Continuar',
                         onPressed: () async {
                           if (!(_formKey.currentState?.validate() ?? false)) {
@@ -199,6 +199,7 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                           }
                         },
                         minWidth: double.infinity,
+                        isLoading: _isLoading,
                       ),
 
                 const SizedBox(height: AppSpacing.spacing16), // Espaço inferior

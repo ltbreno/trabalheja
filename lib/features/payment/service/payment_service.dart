@@ -15,19 +15,25 @@ class PaymentService {
             : null;
 
   /// Cria um pagamento
-  /// 
+  ///
   /// PASSO 1: Cliente paga → Plataforma retém 100% do valor
-  /// 
+  ///
   /// [amount] - Valor em centavos (ex: 10000 = R$ 100,00)
-  /// [cardHash] - Hash do cartão gerado pelo SDK do Pagar.me
-  /// 
+  /// [cardToken] - Token do cartão gerado pelo Pagar.me
+  /// [customerName] - Nome do cliente
+  /// [customerEmail] - Email do cliente
+  /// [customerDocument] - CPF do cliente
+  ///
   /// Retorna os dados da resposta
-  /// 
+  ///
   /// Usa API REST Node.js se `PagarmeConfig.useRestApi = true`
   /// Caso contrário, usa Edge Functions do Supabase
   Future<Map<String, dynamic>> createPayment({
     required int amount,
-    required String cardHash,
+    required String cardToken,
+    required String customerName,
+    required String customerEmail,
+    required String customerDocument,
   }) async {
     // Se usar API REST Node.js (recomendado)
     if (PagarmeConfig.useRestApi) {
@@ -37,7 +43,10 @@ class PaymentService {
       print('📡 Usando API REST Node.js (SDK Pagar.me)...');
       return await _restService.createPayment(
         amount: amount,
-        cardHash: cardHash,
+        cardToken: cardToken,
+        customerName: customerName,
+        customerEmail: customerEmail,
+        customerDocument: customerDocument,
       );
     }
 
@@ -45,15 +54,20 @@ class PaymentService {
     try {
       print('📡 Chamando Edge Function create-payment...');
       print('   amount: $amount');
-      print('   card_hash: ${cardHash.length > 20 ? '${cardHash.substring(0, 20)}...' : cardHash}');
+      print('   card_token: ${cardToken.length > 10 ? '${cardToken.substring(0, 10)}...' : cardToken}');
+      print('   customer_name: $customerName');
+      print('   customer_email: $customerEmail');
       print('   💡 Retenção: 100% na plataforma (split será feito depois)');
       print('   ⚠️ Para usar API REST Node.js, configure PagarmeConfig.useRestApi = true');
-      
+
       final response = await _supabase.functions.invoke(
         'create-payment',
         body: {
           'amount': amount,
-          'card_hash': cardHash,
+          'card_token': cardToken,
+          'customer_name': customerName,
+          'customer_email': customerEmail,
+          'customer_document': customerDocument,
           // Não precisa mais enviar recipient_id - Edge Function usa o da plataforma
         },
       );
