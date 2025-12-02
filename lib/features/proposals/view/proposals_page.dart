@@ -115,6 +115,23 @@ class _ProposalsPageState extends State<ProposalsPage> {
     }
   }
 
+  /// Verifica se existe um pagamento aprovado para a proposta
+  Future<bool> _checkIfPaymentExists(String proposalId) async {
+    try {
+      final payment = await _supabase
+          .from('payments')
+          .select('id, status')
+          .eq('proposal_id', proposalId)
+          .eq('status', 'paid')
+          .maybeSingle();
+      
+      return payment != null;
+    } catch (e) {
+      print('⚠️ Erro ao verificar pagamento: $e');
+      return false;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _loadReceivedProposals(String clientId) async {
     // Buscar propostas onde o service_request pertence ao cliente
     // Primeiro, buscar os service_requests do cliente
@@ -568,29 +585,41 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           
                           // Se a proposta foi aceita, mostrar card especial com botão de pagamento
                           if (status == 'accepted') {
-                            return AcceptedProposalCard(
-                              name: freelancerName,
-                              location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
-                              price: _formatCurrency(price.toDouble()),
-                              timeframe: 'Em até $availabilityValue $availabilityUnit',
-                              onPay: () {
-                                // Navegar para tela de pagamento
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CreatePaymentPageImproved(
-                                      serviceRequestId: serviceRequestId,
-                                      proposalId: proposalId,
-                                    ),
-                                  ),
-                                );
-                              },
-                              onChat: () {
-                                // TODO: Navegar para chat
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Chat em desenvolvimento'),
-                                  ),
+                            // Verificar se existe pagamento para esta proposta
+                            return FutureBuilder<bool>(
+                              future: _checkIfPaymentExists(proposalId),
+                              builder: (context, snapshot) {
+                                final hasPaidPayment = snapshot.data ?? false;
+                                
+                                return AcceptedProposalCard(
+                                  name: freelancerName,
+                                  location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                                  price: _formatCurrency(price.toDouble()),
+                                  timeframe: 'Em até $availabilityValue $availabilityUnit',
+                                  hasPaidPayment: hasPaidPayment,
+                                  onPay: () {
+                                    // Navegar para tela de pagamento
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CreatePaymentPageImproved(
+                                          serviceRequestId: serviceRequestId,
+                                          proposalId: proposalId,
+                                        ),
+                                      ),
+                                    ).then((_) {
+                                      // Recarregar propostas após voltar da tela de pagamento
+                                      _loadProposals();
+                                    });
+                                  },
+                                  onChat: () {
+                                    // TODO: Navegar para chat
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Chat em desenvolvimento'),
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             );

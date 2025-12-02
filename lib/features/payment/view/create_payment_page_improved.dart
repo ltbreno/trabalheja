@@ -205,7 +205,37 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
 
       // Verificar status
       if (paymentStatus == 'paid') {
-        // ✅ SUCESSO
+        // ✅ SUCESSO - Salvar pagamento no Supabase
+        print('💾 Salvando pagamento no Supabase...');
+        
+        try {
+          await _supabase.from('payments').insert({
+            'service_request_id': widget.serviceRequestId,
+            'proposal_id': widget.proposalId,
+            'client_id': _supabase.auth.currentUser!.id,
+            'freelancer_id': _freelancerProfile!['id'],
+            'amount': _serviceAmount,
+            'platform_fee': _platformFee,
+            'total_amount': _totalAmount,
+            'installments': _selectedInstallments,
+            'pagarme_order_id': orderId,
+            'pagarme_payment_id': paymentId,
+            'status': 'paid',
+            'customer_name': _clientProfile!['full_name'],
+            'customer_email': _clientProfile!['email'],
+            'customer_document': _cpfController.text.trim().replaceAll(RegExp(r'[^0-9]'), ''),
+            'retained_at': DateTime.now().toIso8601String(),
+            'release_status': 'retained',
+          });
+          
+          print('✅ Pagamento salvo no Supabase com sucesso!');
+        } catch (e) {
+          print('⚠️ Erro ao salvar pagamento no Supabase: $e');
+          // Continuar mesmo se falhar ao salvar (pagamento já foi processado)
+        }
+        
+        if (!mounted) return;
+        
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => PaymentSuccessPage(

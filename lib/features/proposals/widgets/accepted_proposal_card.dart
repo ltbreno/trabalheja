@@ -13,6 +13,7 @@ class AcceptedProposalCard extends StatelessWidget {
   final String timeframe;
   final VoidCallback onPay;
   final VoidCallback? onChat;
+  final bool hasPaidPayment; // Se true, pagamento já foi realizado
 
   const AcceptedProposalCard({
     super.key,
@@ -22,6 +23,7 @@ class AcceptedProposalCard extends StatelessWidget {
     required this.timeframe,
     required this.onPay,
     this.onChat,
+    this.hasPaidPayment = false,
   });
 
   @override
@@ -104,23 +106,27 @@ class AcceptedProposalCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: hasPaidPayment ? Colors.green.shade50 : Colors.blue.shade50,
               borderRadius: AppRadius.radius8,
-              border: Border.all(color: Colors.blue.shade200),
+              border: Border.all(
+                color: hasPaidPayment ? Colors.green.shade200 : Colors.blue.shade200,
+              ),
             ),
             child: Row(
               children: [
                 Icon(
-                  Icons.info_outline,
+                  hasPaidPayment ? Icons.check_circle_outline : Icons.info_outline,
                   size: 20,
-                  color: Colors.blue.shade700,
+                  color: hasPaidPayment ? Colors.green.shade700 : Colors.blue.shade700,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Realize o pagamento para iniciar o serviço',
+                    hasPaidPayment
+                        ? 'Pagamento realizado! Converse com o freelancer'
+                        : 'Realize o pagamento para iniciar o serviço',
                     style: AppTypography.captionMedium.copyWith(
-                      color: Colors.blue.shade900,
+                      color: hasPaidPayment ? Colors.green.shade900 : Colors.blue.shade900,
                     ),
                   ),
                 ),
@@ -140,59 +146,55 @@ class AcceptedProposalCard extends StatelessWidget {
   Widget _buildCardActions() {
     return Column(
       children: [
-        // Botão principal: Pagar
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.payment, size: 20),
-            label: Text(
-              'Realizar Pagamento',
-              style: AppTypography.contentBold.copyWith(
-                color: AppColorsNeutral.neutral0,
-              ),
-            ),
-            onPressed: onPay,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColorsPrimary.primary700,
-              foregroundColor: AppColorsNeutral.neutral0,
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: AppRadius.radius8,
-              ),
-            ),
-          ),
-        ),
-
-        if (onChat != null) ...[
-          const SizedBox(height: 12),
-
-          // Botão secundário: Chat
+        // Se pagamento NÃO foi realizado: Mostrar botão de pagamento
+        if (!hasPaidPayment)
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.chat_bubble_outline, size: 20),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.payment, size: 20),
               label: Text(
-                'Conversar com Freelancer',
+                'Realizar Pagamento',
                 style: AppTypography.contentBold.copyWith(
-                  color: AppColorsPrimary.primary700,
+                  color: AppColorsNeutral.neutral0,
                 ),
               ),
-              onPressed: onChat,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColorsPrimary.primary700,
-                side: BorderSide(
-                  color: AppColorsPrimary.primary700,
-                  width: 1.5,
-                ),
+              onPressed: onPay,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColorsPrimary.primary700,
+                foregroundColor: AppColorsNeutral.neutral0,
+                elevation: 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: AppRadius.radius8,
                 ),
               ),
             ),
           ),
-        ],
+
+        // Se pagamento FOI realizado: Mostrar botão de chat
+        if (hasPaidPayment && onChat != null)
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.chat_bubble_outline, size: 20),
+              label: Text(
+                'Conversar com Freelancer',
+                style: AppTypography.contentBold.copyWith(
+                  color: AppColorsNeutral.neutral0,
+                ),
+              ),
+              onPressed: onChat,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColorsSuccess.success700,
+                foregroundColor: AppColorsNeutral.neutral0,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.radius8,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
