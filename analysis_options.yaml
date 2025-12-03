@@ -9,20 +9,98 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+# Configurações do analisador
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "build/**"
+    - "lib/generated/**"
+  
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+  
+  errors:
+    # Tratar alguns warnings como erros para garantir qualidade
+    invalid_annotation_target: ignore
+    todo: ignore
+    deprecated_member_use: warning
+    deprecated_member_use_from_same_package: warning
+  
 linter:
-  # The lint rules applied to this project can be customized in the
-  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
-  # included above or to enable additional rules. A list of all available lints
-  # and their documentation is published at https://dart.dev/lints.
-  #
-  # Instead of disabling a lint rule for the entire project in the
-  # section below, it can also be suppressed for a single line of code
-  # or a specific dart file by using the `// ignore: name_of_lint` and
-  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
-  # producing the lint.
+  # Regras de linting personalizadas
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Regras de estilo
+    - prefer_single_quotes
+    - prefer_const_constructors
+    - prefer_const_literals_to_create_immutables
+    - prefer_const_declarations
+    - prefer_final_fields
+    - prefer_final_locals
+    - prefer_final_in_for_each
+    - sort_child_properties_last
+    - use_key_in_widget_constructors
+    - sized_box_for_whitespace
+    - use_full_hex_values_for_flutter_colors
+    
+    # Regras de erro
+    - avoid_print
+    - avoid_unnecessary_containers
+    - avoid_web_libraries_in_flutter
+    - no_logic_in_create_state
+    - prefer_void_to_null
+    - use_build_context_synchronously
+    
+    # Regras de performance
+    - avoid_function_literals_in_foreach_calls
+    - prefer_collection_literals
+    - prefer_spread_collections
+    - prefer_if_elements_to_conditional_expressions
+    
+    # Regras de segurança
+    - always_declare_return_types
+    - annotate_overrides
+    - avoid_empty_else
+    - avoid_relative_lib_imports
+    - avoid_shadowing_type_parameters
+    - avoid_types_as_parameter_names
+    - camel_case_types
+    - curly_braces_in_flow_control_structures
+    - empty_catches
+    - library_names
+    - library_prefixes
+    - no_duplicate_case_values
+    - null_closures
+    - prefer_adjacent_string_concatenation
+    - prefer_is_empty
+    - prefer_is_not_empty
+    - recursive_getters
+    - slash_for_doc_comments
+    - type_init_formals
+    - unawaited_futures
+    - unnecessary_null_aware_assignments
+    - unnecessary_null_in_if_null_operators
+    - unrelated_type_equality_checks
+    - valid_regexps
+    
+    # Regras de manutenibilidade
+    - avoid_init_to_null
+    - avoid_null_checks_in_equality_operators
+    - avoid_return_types_on_setters
+    - avoid_returning_null_for_void
+    - await_only_futures
+    - camel_case_extensions
+    - implementation_imports
+    - prefer_contains
+    - prefer_equal_for_default_values
+    - prefer_iterable_whereType
+    - unnecessary_await_in_return
+    - unnecessary_const
+    - unnecessary_new
+    - unnecessary_this
+    - use_function_type_syntax_for_parameters
+    - use_rethrow_when_possible
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

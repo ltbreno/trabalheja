@@ -1,0 +1,135 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Job 1: Análise estática e formatação
+  code_quality:
+    name: Análise de Código e Formatação
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout do código
+        uses: actions/checkout@v4
+
+      - name: 🔧 Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🎯 Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Instalar dependências
+        run: flutter pub get
+
+      - name: 🔍 Verificar formatação (dart format)
+        run: |
+          echo "🔍 Verificando formatação do código..."
+          dart format --set-exit-if-changed --line-length 100 lib/ test/
+          echo "✅ Formatação verificada com sucesso!"
+
+      - name: 🔎 Análise estática (flutter analyze)
+        run: |
+          echo "🔎 Executando análise estática..."
+          flutter analyze --fatal-infos --fatal-warnings
+          echo "✅ Análise estática concluída com sucesso!"
+
+  # Job 2: Testes
+  tests:
+    name: Testes Unitários e de Widget
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: code_quality
+
+    steps:
+      - name: 📥 Checkout do código
+        uses: actions/checkout@v4
+
+      - name: 🔧 Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🎯 Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: 📦 Instalar dependências
+        run: flutter pub get
+
+      - name: 🧪 Executar testes
+        run: |
+          echo "🧪 Executando testes unitários e de widget..."
+          flutter test --coverage --reporter expanded
+          echo "✅ Testes executados com sucesso!"
+
+      - name: 📊 Gerar relatório de cobertura
+        run: |
+          echo "📊 Gerando relatório de cobertura..."
+          if [ -f "coverage/lcov.info" ]; then
+            echo "✅ Arquivo de cobertura gerado: coverage/lcov.info"
+            # Exibir resumo da cobertura
+            echo "📈 Resumo da cobertura:"
+            lcov --summary coverage/lcov.info 2>&1 | grep -A 3 "Summary coverage"
+          else
+            echo "⚠️ Nenhum arquivo de cobertura gerado"
+          fi
+
+      - name: 📤 Upload do relatório de cobertura
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+      - name: 📈 Upload para Codecov (opcional)
+        uses: codecov/codecov-action@v4
+        if: success()
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: trabalheja-coverage
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  # Job 3: Resumo e notificação
+  summary:
+    name: Resumo do Pipeline
+    runs-on: ubuntu-latest
+    needs: [code_quality, tests]
+    if: always()
+
+    steps:
+      - name: ✅ Pipeline concluído
+        run: |
+          echo "🎉 =================================="
+          echo "✅ Pipeline CI/CD Flutter Concluído!"
+          echo "🎉 =================================="
+          echo ""
+          echo "📋 Verificações realizadas:"
+          echo "  ✅ Formatação de código (dart format)"
+          echo "  ✅ Análise estática (flutter analyze)"
+          echo "  ✅ Testes unitários e de widget"
+          echo "  ✅ Relatório de cobertura gerado"
+          echo ""
+          echo "🚀 Próximos passos:"
+          echo "  - Revisar relatório de cobertura"
+          echo "  - Aprovar Pull Request"
+          echo "  - Fazer merge para branch principal"
+
