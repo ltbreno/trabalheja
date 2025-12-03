@@ -22,6 +22,7 @@ class PaymentServiceRest {
   /// [customerName] - Nome do cliente
   /// [customerEmail] - Email do cliente
   /// [customerDocument] - CPF do cliente
+  /// [proposalId] - ID da proposta aceita (opcional)
   ///
   /// Retorna os dados da resposta da API
   Future<Map<String, dynamic>> createPayment({
@@ -30,6 +31,7 @@ class PaymentServiceRest {
     required String customerName,
     required String customerEmail,
     required String customerDocument,
+    String? proposalId,
   }) async {
     try {
       print('📡 Chamando API REST Node.js...');
@@ -39,6 +41,9 @@ class PaymentServiceRest {
       print('   card_token: ${cardToken.length > 10 ? '${cardToken.substring(0, 10)}...' : cardToken}');
       print('   customer_name: $customerName');
       print('   customer_email: $customerEmail');
+      if (proposalId != null) {
+        print('   📋 proposal_id: $proposalId');
+      }
       print('   💡 Retenção: 100% na plataforma (split será feito depois)');
 
       final response = await http.post(
@@ -52,6 +57,7 @@ class PaymentServiceRest {
           'customer_name': customerName,
           'customer_email': customerEmail,
           'customer_document': customerDocument,
+          if (proposalId != null) 'proposal_id': proposalId,
         }),
       );
 
@@ -109,6 +115,7 @@ class PaymentServiceRest {
   /// [customerDocument] - CPF do cliente
   /// [customerPhone] - Telefone do cliente (DDD + número)
   /// [description] - Descrição do pagamento
+  /// [proposalId] - ID da proposta aceita (opcional)
   ///
   /// Retorna os dados da resposta da API incluindo QR Code
   Future<Map<String, dynamic>> createPixPayment({
@@ -118,6 +125,7 @@ class PaymentServiceRest {
     required String customerDocument,
     required Map<String, String> customerPhone,
     String? description,
+    String? proposalId,
   }) async {
     try {
       print('📡 Criando pagamento PIX via API REST Node.js...');
@@ -127,6 +135,9 @@ class PaymentServiceRest {
       print('   👤 Cliente: $customerName');
       print('   📧 Email: $customerEmail');
       print('   📱 Telefone: (${customerPhone['area_code']}) ${customerPhone['number']}');
+      if (proposalId != null) {
+        print('   📋 Proposal ID: $proposalId');
+      }
 
       final response = await http.post(
         Uri.parse('$apiBaseUrl/api/payments/pix'),
@@ -140,6 +151,7 @@ class PaymentServiceRest {
           'customer_document': customerDocument,
           'customer_phone': customerPhone,
           'description': description ?? 'Pagamento via PIX',
+          if (proposalId != null) 'proposal_id': proposalId,
         }),
       );
 

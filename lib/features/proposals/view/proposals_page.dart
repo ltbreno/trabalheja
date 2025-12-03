@@ -117,16 +117,23 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   /// Verifica se existe um pagamento aprovado para a proposta
+  /// Agora usa a VIEW proposals_with_payment_status
   Future<Map<String, dynamic>?> _getPaymentData(String proposalId) async {
     try {
-      final payment = await _supabase
-          .from('payments')
-          .select('*')
+      final proposal = await _supabase
+          .from('proposals_with_payment_status')
+          .select('payment_status, payment_method')
           .eq('proposal_id', proposalId)
-          .eq('status', 'paid')
           .maybeSingle();
       
-      return payment;
+      if (proposal != null && proposal['payment_status'] == 'paid') {
+        return {
+          'status': 'paid',
+          'payment_method': proposal['payment_method'],
+        };
+      }
+      
+      return null;
     } catch (e) {
       print('⚠️ Erro ao buscar dados do pagamento: $e');
       return null;
@@ -149,44 +156,76 @@ class _ProposalsPageState extends State<ProposalsPage> {
         .map((sr) => sr['id'] as String)
         .toList();
     
-    // Buscar propostas para esses service_requests
-    // Como o Supabase pode não ter inFilter, vamos fazer uma query para cada service_request
-    // ou usar uma abordagem diferente
+    // Buscar todas as propostas primeiro
     List<Map<String, dynamic>> allProposals = [];
     
     for (var serviceRequestId in serviceRequestIds) {
       final proposalsForService = await _supabase
           .from('proposals')
-          .select('''
-            *,
-            service_requests (
-              id,
-              service_description,
-              service_latitude,
-              service_longitude,
-              budget,
-              deadline_hours,
-              client_id
-            ),
-            profiles!freelancer_id (
-              id,
-              full_name,
-              profile_picture_url,
-              service_latitude,
-              service_longitude
-            )
-          ''')
-          .eq('service_request_id', serviceRequestId)
-          .order('created_at', ascending: false);
+          .select('id')
+          .eq('service_request_id', serviceRequestId);
       
-      allProposals.addAll(proposalsForService);
+      for (var proposal in proposalsForService) {
+        final proposalId = proposal['id'] as String;
+        
+        // Verificar status na VIEW
+        final status = await _supabase
+            .from('proposals_with_payment_status')
+            .select('payment_status, payment_method')
+            .eq('proposal_id', proposalId)
+            .maybeSingle();
+        
+        final paymentStatus = status?['payment_status'] as String?;
+        
+        // Incluir apenas se não está pago (NULL ou != 'paid')
+        if (paymentStatus == null || paymentStatus != 'paid') {
+          // Buscar dados completos da proposta
+          final fullProposal = await _supabase
+              .from('proposals')
+              .select('''
+                *,
+                service_requests (
+                  id,
+                  service_description,
+                  service_latitude,
+                  service_longitude,
+                  budget,
+                  deadline_hours,
+                  client_id
+                ),
+                profiles!freelancer_id (
+                  id,
+                  full_name,
+                  profile_picture_url,
+                  service_latitude,
+                  service_longitude
+                )
+              ''')
+              .eq('id', proposalId)
+              .maybeSingle();
+          
+          if (fullProposal != null) {
+            allProposals.add({
+              ...fullProposal,
+              'payment_status': paymentStatus,
+              'payment_method': status?['payment_method'],
+            });
+          }
+        }
+      }
     }
     
-    final proposals = allProposals;
+    final statusMap = <String, Map<String, dynamic>>{};
+    for (var proposal in allProposals) {
+      statusMap[proposal['id'] as String] = {
+        'payment_status': proposal['payment_status'],
+        'payment_method': proposal['payment_method'],
+      };
+    }
 
     final List<Map<String, dynamic>> enrichedProposals = [];
 
-    for (var proposal in proposals) {
+    for (var proposal in allProposals) {
       final serviceRequest = proposal['service_requests'] as Map<String, dynamic>;
       final freelancer = proposal['profiles'] as Map<String, dynamic>?;
       
@@ -213,34 +252,90 @@ class _ProposalsPageState extends State<ProposalsPage> {
       });
     }
 
+    // Ordenar por data de criação (mais recentes primeiro)
+    enrichedProposals.sort((a, b) {
+      final aDate = a['created_at'] as String? ?? '';
+      final bDate = b['created_at'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+
     return enrichedProposals;
   }
 
   Future<List<Map<String, dynamic>>> _loadSentProposals(String freelancerId) async {
-    // Buscar propostas enviadas pelo freelancer
-    final proposals = await _supabase
+    // Buscar todas as propostas e verificar status na VIEW
+    final allProposals = await _supabase
         .from('proposals')
-        .select('''
-          *,
-          service_requests (
-            id,
-            service_description,
-            service_latitude,
-            service_longitude,
-            budget,
-            deadline_hours,
-            client_id,
-            profiles!client_id (
-              id,
-              full_name,
-              profile_picture_url,
-              service_latitude,
-              service_longitude
-            )
-          )
-        ''')
-        .eq('freelancer_id', freelancerId)
-        .order('created_at', ascending: false);
+        .select('id')
+        .eq('freelancer_id', freelancerId);
+    
+    if (allProposals.isEmpty) {
+      return [];
+    }
+    
+    final validProposals = <Map<String, dynamic>>[];
+    
+    for (var proposal in allProposals) {
+      final proposalId = proposal['id'] as String;
+      
+      // Verificar status na VIEW
+      final status = await _supabase
+          .from('proposals_with_payment_status')
+          .select('payment_status, payment_method')
+          .eq('proposal_id', proposalId)
+          .maybeSingle();
+      
+      final paymentStatus = status?['payment_status'] as String?;
+      
+      // Incluir apenas se não está pago (NULL ou != 'paid')
+      if (paymentStatus == null || paymentStatus != 'paid') {
+        // Buscar dados completos
+        final fullProposal = await _supabase
+            .from('proposals')
+            .select('''
+              *,
+              service_requests (
+                id,
+                service_description,
+                service_latitude,
+                service_longitude,
+                budget,
+                deadline_hours,
+                client_id,
+                profiles!client_id (
+                  id,
+                  full_name,
+                  profile_picture_url,
+                  service_latitude,
+                  service_longitude
+                )
+              )
+            ''')
+            .eq('id', proposalId)
+            .maybeSingle();
+        
+        if (fullProposal != null) {
+          validProposals.add({
+            ...fullProposal,
+            'payment_status': paymentStatus,
+            'payment_method': status?['payment_method'],
+          });
+        }
+      }
+    }
+    
+    if (validProposals.isEmpty) {
+      return [];
+    }
+    
+    // Ordenar por data
+    validProposals.sort((a, b) {
+      final aDate = a['created_at'] as String? ?? '';
+      final bDate = b['created_at'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+    
+    final proposals = validProposals;
 
     final List<Map<String, dynamic>> enrichedProposals = [];
 
@@ -640,6 +735,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                         // Recarregar propostas após liberar pagamento
                                         _loadProposals();
                                       }
+                                    }).catchError((_) {
+                                      // Ignorar erros de navegação
                                     });
                                   } : null,
                                 );

@@ -233,6 +233,7 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
         'number': number,
       },
       description: 'Pagamento de serviço - ${_serviceRequest!['service_description']}',
+      proposalId: widget.proposalId,
     );
 
     if (!mounted) return;
@@ -345,6 +346,7 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
       customerName: _clientProfile!['full_name'] as String,
       customerEmail: _clientProfile!['email'] as String,
       customerDocument: cpf,
+      proposalId: widget.proposalId,
     );
 
     if (!mounted) return;

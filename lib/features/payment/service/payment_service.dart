@@ -23,6 +23,7 @@ class PaymentService {
   /// [customerName] - Nome do cliente
   /// [customerEmail] - Email do cliente
   /// [customerDocument] - CPF do cliente
+  /// [proposalId] - ID da proposta aceita (opcional)
   ///
   /// Retorna os dados da resposta
   ///
@@ -34,6 +35,7 @@ class PaymentService {
     required String customerName,
     required String customerEmail,
     required String customerDocument,
+    String? proposalId,
   }) async {
     // Se usar API REST Node.js (recomendado)
     if (PagarmeConfig.useRestApi) {
@@ -47,6 +49,7 @@ class PaymentService {
         customerName: customerName,
         customerEmail: customerEmail,
         customerDocument: customerDocument,
+        proposalId: proposalId,
       );
     }
 
@@ -175,6 +178,7 @@ class PaymentService {
   /// [customerDocument] - CPF do cliente
   /// [customerPhone] - Telefone do cliente (DDD + número)
   /// [description] - Descrição do pagamento
+  /// [proposalId] - ID da proposta aceita (opcional)
   ///
   /// Retorna os dados da resposta incluindo QR Code
   Future<Map<String, dynamic>> createPixPayment({
@@ -184,6 +188,7 @@ class PaymentService {
     required String customerDocument,
     required Map<String, String> customerPhone,
     String? description,
+    String? proposalId,
   }) async {
     if (PagarmeConfig.useRestApi) {
       if (_restService == null) {
@@ -197,6 +202,7 @@ class PaymentService {
         customerDocument: customerDocument,
         customerPhone: customerPhone,
         description: description,
+        proposalId: proposalId,
       );
     }
 
