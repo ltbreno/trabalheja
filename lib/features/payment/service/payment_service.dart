@@ -166,5 +166,148 @@ class PaymentService {
       throw Exception('Erro ao criar pagamento: ${e.toString()}');
     }
   }
+
+  /// Cria um pagamento PIX
+  ///
+  /// [amount] - Valor em centavos (ex: 10000 = R$ 100,00)
+  /// [customerName] - Nome do cliente
+  /// [customerEmail] - Email do cliente
+  /// [customerDocument] - CPF do cliente
+  /// [customerPhone] - Telefone do cliente (DDD + número)
+  /// [description] - Descrição do pagamento
+  ///
+  /// Retorna os dados da resposta incluindo QR Code
+  Future<Map<String, dynamic>> createPixPayment({
+    required int amount,
+    required String customerName,
+    required String customerEmail,
+    required String customerDocument,
+    required Map<String, String> customerPhone,
+    String? description,
+  }) async {
+    if (PagarmeConfig.useRestApi) {
+      if (_restService == null) {
+        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
+      }
+      print('📡 Usando API REST Node.js para PIX...');
+      return await _restService.createPixPayment(
+        amount: amount,
+        customerName: customerName,
+        customerEmail: customerEmail,
+        customerDocument: customerDocument,
+        customerPhone: customerPhone,
+        description: description,
+      );
+    }
+
+    throw Exception('PIX só é suportado via API REST Node.js. Configure PagarmeConfig.useRestApi = true');
+  }
+
+  /// Verifica o status de um pagamento PIX
+  ///
+  /// [orderId] - ID do pedido no Pagar.me
+  ///
+  /// Retorna os dados atualizados do pagamento
+  Future<Map<String, dynamic>> checkPixPaymentStatus({
+    required String orderId,
+  }) async {
+    if (PagarmeConfig.useRestApi) {
+      if (_restService == null) {
+        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
+      }
+      return await _restService.checkPixPaymentStatus(orderId: orderId);
+    }
+
+    throw Exception('Verificação de status PIX só é suportada via API REST Node.js');
+  }
+
+  /// Cria um customer (cliente) no Pagar.me
+  ///
+  /// [name] - Nome completo do cliente
+  /// [email] - Email do cliente
+  /// [document] - CPF/CNPJ do cliente
+  /// [type] - Tipo: 'individual' ou 'company'
+  /// [phoneNumbers] - Lista de telefones (opcional)
+  ///
+  /// Retorna os dados do customer criado incluindo o ID
+  Future<Map<String, dynamic>> createCustomer({
+    required String name,
+    required String email,
+    required String document,
+    String type = 'individual',
+    List<String>? phoneNumbers,
+  }) async {
+    if (PagarmeConfig.useRestApi) {
+      if (_restService == null) {
+        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
+      }
+      return await _restService.createCustomer(
+        name: name,
+        email: email,
+        document: document,
+        type: type,
+        phoneNumbers: phoneNumbers,
+      );
+    }
+
+    throw Exception('Criação de customer só é suportada via API REST Node.js');
+  }
+
+  /// Cria um recipient (recebedor) no Pagar.me
+  ///
+  /// [name] - Nome do recebedor
+  /// [email] - Email do recebedor
+  /// [document] - CPF/CNPJ do recebedor
+  /// [bankAccount] - Dados da conta bancária
+  ///
+  /// Retorna os dados do recipient criado incluindo o ID
+  Future<Map<String, dynamic>> createRecipient({
+    required String name,
+    required String email,
+    required String document,
+    required Map<String, dynamic> bankAccount,
+  }) async {
+    if (PagarmeConfig.useRestApi) {
+      if (_restService == null) {
+        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
+      }
+      return await _restService.createRecipient(
+        name: name,
+        email: email,
+        document: document,
+        bankAccount: bankAccount,
+      );
+    }
+
+    throw Exception('Criação de recipient só é suportada via API REST Node.js');
+  }
+
+  /// Cria uma transferência para um recipient
+  ///
+  /// Usado quando o serviço é finalizado para liberar o pagamento ao freelancer
+  ///
+  /// [recipientId] - ID do recipient no Pagar.me
+  /// [amount] - Valor em centavos a ser transferido
+  /// [orderId] - ID do pedido de origem
+  ///
+  /// Retorna os dados da transferência criada
+  Future<Map<String, dynamic>> createTransfer({
+    required String recipientId,
+    required int amount,
+    required String orderId,
+  }) async {
+    if (PagarmeConfig.useRestApi) {
+      if (_restService == null) {
+        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
+      }
+      return await _restService.createTransfer(
+        recipientId: recipientId,
+        amount: amount,
+        orderId: orderId,
+      );
+    }
+
+    throw Exception('Criação de transferência só é suportada via API REST Node.js');
+  }
 }
 

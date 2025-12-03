@@ -13,6 +13,7 @@ import 'faq_page.dart';
 import 'addresses_page.dart';
 import 'terms_of_service_page.dart';
 import 'privacy_policy_page.dart';
+import 'bank_account_page.dart'; // Dados bancários do freelancer
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -229,6 +230,19 @@ class _AccountPageState extends State<AccountPage> {
                  );
                },
             ),
+            // Dados bancários - apenas para freelancers
+            if (_profileData?['account_type'] == 'freelancer')
+              _buildListTile(
+                context: context,
+                iconPath: 'assets/icons/credit_card.svg',
+                title: 'Dados Bancários',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const BankAccountPage()),
+                  );
+                },
+              ),
             _buildListTile( 
               context: context,
               iconPath: 'assets/icons/credit_card.svg', // Use o ícone correto
