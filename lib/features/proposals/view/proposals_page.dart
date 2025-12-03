@@ -1,6 +1,5 @@
 // lib/features/proposals/view/proposals_page.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
@@ -12,6 +11,7 @@ import 'package:trabalheja/core/widgets/error_modal.dart';
 import 'package:trabalheja/features/proposals/widgets/received_proposal_card.dart';
 import 'package:trabalheja/features/proposals/widgets/accepted_proposal_card.dart';
 import 'package:trabalheja/features/proposals/widgets/sent_proposal_card.dart' show SentProposalCard, ProposalStatus;
+import 'package:trabalheja/features/proposals/widgets/paid_proposal_card.dart';
 import 'package:trabalheja/features/payment/view/create_payment_page_improved.dart';
 import 'package:trabalheja/features/payment/view/release_payment_page.dart';
 
@@ -30,9 +30,10 @@ class _ProposalsPageState extends State<ProposalsPage> {
   bool _isLoading = true;
   bool _isLoadingProposals = false;
   
-  // Filtros para clientes (propostas recebidas)
-  // Por padrão, mostrar todas (pending, accepted, rejected)
-  List<bool> _selectedFilters = [false, false]; // [Aceitas, Rejeitadas]
+  // Filtros para propostas
+  // [Pendentes, Aceitas, Rejeitadas, Pagas]
+  // Por padrão, mostrar todas (nenhum filtro selecionado)
+  List<bool> _selectedFilters = [false, false, false, false];
   
   String? get _accountType => _profileData?['account_type'] as String?;
   bool get _isClient => _accountType == 'client';
@@ -156,7 +157,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
         .map((sr) => sr['id'] as String)
         .toList();
     
-    // Buscar todas as propostas primeiro
+    // Buscar todas as propostas (incluindo pagas)
     List<Map<String, dynamic>> allProposals = [];
     
     for (var serviceRequestId in serviceRequestIds) {
@@ -168,7 +169,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
       for (var proposal in proposalsForService) {
         final proposalId = proposal['id'] as String;
         
-        // Verificar status na VIEW
+        // Verificar status na VIEW (SEM pagarme_order_id)
         final status = await _supabase
             .from('proposals_with_payment_status')
             .select('payment_status, payment_method')
@@ -177,40 +178,48 @@ class _ProposalsPageState extends State<ProposalsPage> {
         
         final paymentStatus = status?['payment_status'] as String?;
         
-        // Incluir apenas se não está pago (NULL ou != 'paid')
-        if (paymentStatus == null || paymentStatus != 'paid') {
-          // Buscar dados completos da proposta
-          final fullProposal = await _supabase
-              .from('proposals')
-              .select('''
-                *,
-                service_requests (
-                  id,
-                  service_description,
-                  service_latitude,
-                  service_longitude,
-                  budget,
-                  deadline_hours,
-                  client_id
-                ),
-                profiles!freelancer_id (
-                  id,
-                  full_name,
-                  profile_picture_url,
-                  service_latitude,
-                  service_longitude
-                )
-              ''')
-              .eq('id', proposalId)
-              .maybeSingle();
-          
-          if (fullProposal != null) {
-            allProposals.add({
-              ...fullProposal,
-              'payment_status': paymentStatus,
-              'payment_method': status?['payment_method'],
-            });
+        // Buscar dados completos da proposta
+        final fullProposal = await _supabase
+            .from('proposals')
+            .select('''
+              *,
+              service_requests (
+                id,
+                service_description,
+                service_latitude,
+                service_longitude,
+                budget,
+                deadline_hours,
+                client_id
+              ),
+              profiles!freelancer_id (
+                id,
+                full_name,
+                profile_picture_url,
+                service_latitude,
+                service_longitude
+              )
+            ''')
+            .eq('id', proposalId)
+            .maybeSingle();
+        
+        if (fullProposal != null) {
+          // Buscar dados completos do pagamento se a proposta está paga
+          Map<String, dynamic>? paymentDetails;
+          if (paymentStatus == 'paid') {
+            paymentDetails = await _supabase
+                .from('payments')
+                .select('*')
+                .eq('proposal_id', proposalId)
+                .maybeSingle();
           }
+          
+          allProposals.add({
+            ...fullProposal,
+            'payment_status': paymentStatus,
+            'payment_method': status?['payment_method'],
+            if (paymentDetails != null) 'payment_details': paymentDetails,
+          });
         }
       }
     }
@@ -263,7 +272,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   Future<List<Map<String, dynamic>>> _loadSentProposals(String freelancerId) async {
-    // Buscar todas as propostas e verificar status na VIEW
+    // Buscar todas as propostas (incluindo pagas)
     final allProposals = await _supabase
         .from('proposals')
         .select('id')
@@ -278,7 +287,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
     for (var proposal in allProposals) {
       final proposalId = proposal['id'] as String;
       
-      // Verificar status na VIEW
+      // Verificar status na VIEW (SEM pagarme_order_id)
       final status = await _supabase
           .from('proposals_with_payment_status')
           .select('payment_status, payment_method')
@@ -287,40 +296,48 @@ class _ProposalsPageState extends State<ProposalsPage> {
       
       final paymentStatus = status?['payment_status'] as String?;
       
-      // Incluir apenas se não está pago (NULL ou != 'paid')
-      if (paymentStatus == null || paymentStatus != 'paid') {
-        // Buscar dados completos
-        final fullProposal = await _supabase
-            .from('proposals')
-            .select('''
-              *,
-              service_requests (
+      // Buscar dados completos
+      final fullProposal = await _supabase
+          .from('proposals')
+          .select('''
+            *,
+            service_requests (
+              id,
+              service_description,
+              service_latitude,
+              service_longitude,
+              budget,
+              deadline_hours,
+              client_id,
+              profiles!client_id (
                 id,
-                service_description,
+                full_name,
+                profile_picture_url,
                 service_latitude,
-                service_longitude,
-                budget,
-                deadline_hours,
-                client_id,
-                profiles!client_id (
-                  id,
-                  full_name,
-                  profile_picture_url,
-                  service_latitude,
-                  service_longitude
-                )
+                service_longitude
               )
-            ''')
-            .eq('id', proposalId)
-            .maybeSingle();
-        
-        if (fullProposal != null) {
-          validProposals.add({
-            ...fullProposal,
-            'payment_status': paymentStatus,
-            'payment_method': status?['payment_method'],
-          });
+            )
+          ''')
+          .eq('id', proposalId)
+          .maybeSingle();
+      
+      if (fullProposal != null) {
+        // Buscar dados completos do pagamento se a proposta está paga
+        Map<String, dynamic>? paymentDetails;
+        if (paymentStatus == 'paid') {
+          paymentDetails = await _supabase
+              .from('payments')
+              .select('*')
+              .eq('proposal_id', proposalId)
+              .maybeSingle();
         }
+        
+        validProposals.add({
+          ...fullProposal,
+          'payment_status': paymentStatus,
+          'payment_method': status?['payment_method'],
+          if (paymentDetails != null) 'payment_details': paymentDetails,
+        });
       }
     }
     
@@ -374,31 +391,65 @@ class _ProposalsPageState extends State<ProposalsPage> {
     return enrichedProposals;
   }
 
-  List<Map<String, dynamic>> _getFilteredProposals() {
-    if (_isClient) {
-      // Para clientes: filtrar por aceitas/rejeitadas
-      final showAccepted = _selectedFilters[0];
-      final showRejected = _selectedFilters[1];
+  /// Conta propostas por status para exibir nos filtros
+  Map<String, int> _getProposalCounts() {
+    int pending = 0;
+    int accepted = 0;
+    int rejected = 0;
+    int paid = 0;
+    
+    for (var p in _proposals) {
+      final status = p['status'] as String?;
+      final paymentStatus = p['payment_status'] as String?;
       
-      if (showAccepted && showRejected) {
-        // Mostrar aceitas e rejeitadas
-        return _proposals.where((p) => 
-          p['status'] == 'accepted' || p['status'] == 'rejected'
-        ).toList();
-      } else if (showAccepted) {
-        // Mostrar apenas aceitas
-        return _proposals.where((p) => p['status'] == 'accepted').toList();
-      } else if (showRejected) {
-        // Mostrar apenas rejeitadas
-        return _proposals.where((p) => p['status'] == 'rejected').toList();
-      } else {
-        // Se nenhum filtro estiver selecionado, mostrar todas (incluindo pending)
-        return _proposals;
+      if (paymentStatus == 'paid') {
+        paid++;
+      } else if (status == 'pending') {
+        pending++;
+      } else if (status == 'accepted') {
+        accepted++;
+      } else if (status == 'rejected') {
+        rejected++;
       }
-    } else {
-      // Para freelancers: mostrar todas (já filtradas por status no card)
+    }
+    
+    return {
+      'pending': pending,
+      'accepted': accepted,
+      'rejected': rejected,
+      'paid': paid,
+    };
+  }
+
+  List<Map<String, dynamic>> _getFilteredProposals() {
+    // Filtros: [Pendentes, Aceitas, Rejeitadas, Pagas]
+    final showPending = _selectedFilters[0];
+    final showAccepted = _selectedFilters[1];
+    final showRejected = _selectedFilters[2];
+    final showPaid = _selectedFilters[3];
+    
+    // Se nenhum filtro estiver selecionado, mostrar todas
+    if (!showPending && !showAccepted && !showRejected && !showPaid) {
       return _proposals;
     }
+    
+    // Filtrar propostas baseado nos filtros selecionados
+    return _proposals.where((p) {
+      final status = p['status'] as String?;
+      final paymentStatus = p['payment_status'] as String?;
+      
+      // Proposta está paga
+      if (paymentStatus == 'paid') {
+        return showPaid;
+      }
+      
+      // Proposta não está paga, verificar status da proposta
+      if (status == 'pending' && showPending) return true;
+      if (status == 'accepted' && showAccepted) return true;
+      if (status == 'rejected' && showRejected) return true;
+      
+      return false;
+    }).toList();
   }
 
   Future<void> _acceptProposal(String proposalId) async {
@@ -601,36 +652,78 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   Widget _buildReceivedProposals(List<Map<String, dynamic>> proposals) {
+    final counts = _getProposalCounts();
+    
     return Column(
       children: [
-        // Filtros
+        // Filtros com contadores
         Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.spacing24,
             vertical: AppSpacing.spacing16,
           ),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: _buildFilterChip(
-                  text: 'Aceitas',
-                  iconPath: 'assets/icons/checkmark.svg',
-                  isSelected: _selectedFilters[0],
-                  onTap: () => setState(() {
-                    _selectedFilters = [true, false];
-                  }),
-                ),
+              // Primeira linha: Pendentes e Aceitas
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Pendentes',
+                      count: counts['pending'] ?? 0,
+                      icon: Icons.schedule,
+                      isSelected: _selectedFilters[0],
+                      onTap: () => setState(() {
+                        _selectedFilters[0] = !_selectedFilters[0];
+                      }),
+                      color: Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.spacing12),
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Aceitas',
+                      count: counts['accepted'] ?? 0,
+                      icon: Icons.check_circle,
+                      isSelected: _selectedFilters[1],
+                      onTap: () => setState(() {
+                        _selectedFilters[1] = !_selectedFilters[1];
+                      }),
+                      color: AppColorsSuccess.success600,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: AppSpacing.spacing16),
-              Expanded(
-                child: _buildFilterChip(
-                  text: 'Rejeitadas',
-                  iconPath: 'assets/icons/close.svg',
-                  isSelected: _selectedFilters[1],
-                  onTap: () => setState(() {
-                    _selectedFilters = [false, true];
-                  }),
-                ),
+              const SizedBox(height: AppSpacing.spacing12),
+              // Segunda linha: Rejeitadas e Pagas
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Rejeitadas',
+                      count: counts['rejected'] ?? 0,
+                      icon: Icons.cancel,
+                      isSelected: _selectedFilters[2],
+                      onTap: () => setState(() {
+                        _selectedFilters[2] = !_selectedFilters[2];
+                      }),
+                      color: AppColorsError.error600,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.spacing12),
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Pagas',
+                      count: counts['paid'] ?? 0,
+                      icon: Icons.verified,
+                      isSelected: _selectedFilters[3],
+                      onTap: () => setState(() {
+                        _selectedFilters[3] = !_selectedFilters[3];
+                      }),
+                      color: Colors.purple.shade600,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -669,6 +762,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
                         itemBuilder: (context, index) {
                           final proposal = proposals[index];
                           final freelancer = proposal['profiles'] as Map<String, dynamic>?;
+                          final serviceRequest = proposal['service_requests'] as Map<String, dynamic>?;
+                          final paymentStatus = proposal['payment_status'] as String?;
                           
                           final freelancerName = freelancer?['full_name'] as String? ?? 'Freelancer';
                           final distance = proposal['distance'] as double? ?? 0.0;
@@ -678,8 +773,31 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           final status = proposal['status'] as String?;
                           final serviceRequestId = proposal['service_request_id'] as String;
                           final proposalId = proposal['id'] as String;
+                          final serviceName = serviceRequest?['service_description'] as String? ?? 'Serviço';
                           
-                          // Se a proposta foi aceita, mostrar card especial com botão de pagamento
+                          // Se proposta está paga, mostrar card especial com botão de chat
+                          if (paymentStatus == 'paid') {
+                            final paymentDetails = proposal['payment_details'] as Map<String, dynamic>?;
+                            return PaidProposalCard(
+                              name: freelancerName,
+                              location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                              price: _formatCurrency(price.toDouble()),
+                              serviceName: serviceName,
+                              paymentMethod: paymentDetails?['payment_method'] as String?,
+                              paymentDate: paymentDetails?['created_at'] as String?,
+                              releaseStatus: paymentDetails?['release_status'] as String?,
+                              onChat: () {
+                                // TODO: Navegar para chat
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Chat em desenvolvimento'),
+                                  ),
+                                );
+                              },
+                            );
+                          }
+                          
+                          // Se a proposta foi aceita (mas não paga), mostrar card com botão de pagamento
                           if (status == 'accepted') {
                             // Buscar dados completos do pagamento
                             return FutureBuilder<Map<String, dynamic>?>(
@@ -719,7 +837,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                       ),
                                     );
                                   } : null,
-                                  onReleasePayment: (hasPaidPayment && releaseStatus == 'retained' && paymentData != null && freelancer != null) ? () {
+                                  onReleasePayment: (hasPaidPayment && releaseStatus == 'retained') ? () {
                                     // Navegar para tela de liberar pagamento
                                     Navigator.push(
                                       context,
@@ -727,7 +845,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                         builder: (context) => ReleasePaymentPage(
                                           proposalId: proposalId,
                                           paymentData: paymentData,
-                                          freelancerProfile: freelancer,
+                                          freelancerProfile: freelancer!,
                                         ),
                                       ),
                                     ).then((released) {
@@ -762,93 +880,227 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   Widget _buildSentProposals(List<Map<String, dynamic>> proposals) {
-    return _isLoadingProposals
-        ? const Center(
-            child: CircularProgressIndicator(
-              color: AppColorsPrimary.primary700,
-            ),
-          )
-        : proposals.isEmpty
-            ? Center(
-                child: Text(
-                  'Nenhuma proposta enviada',
-                  style: AppTypography.contentRegular.copyWith(
-                    color: AppColorsNeutral.neutral500,
+    final counts = _getProposalCounts();
+    
+    return Column(
+      children: [
+        // Filtros com contadores (mesma UI que cliente)
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.spacing24,
+            vertical: AppSpacing.spacing16,
+          ),
+          child: Column(
+            children: [
+              // Primeira linha: Pendentes e Aceitas
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Pendentes',
+                      count: counts['pending'] ?? 0,
+                      icon: Icons.schedule,
+                      isSelected: _selectedFilters[0],
+                      onTap: () => setState(() {
+                        _selectedFilters[0] = !_selectedFilters[0];
+                      }),
+                      color: Colors.orange,
+                    ),
                   ),
-                ),
-              )
-            : RefreshIndicator(
-                onRefresh: _loadProposals,
-                color: AppColorsPrimary.primary700,
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(AppSpacing.spacing24),
-                  itemCount: proposals.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: AppSpacing.spacing16),
-                  itemBuilder: (context, index) {
-                    final proposal = proposals[index];
-                    final serviceRequest = proposal['service_requests'] as Map<String, dynamic>?;
-                    final client = serviceRequest?['profiles'] as Map<String, dynamic>?;
-                    
-                    final clientName = client?['full_name'] as String? ?? 'Cliente';
-                    final distance = proposal['distance'] as double? ?? 0.0;
-                    final price = proposal['proposed_price'] as num? ?? 0;
-                    final availabilityValue = proposal['availability_value'] as int? ?? 0;
-                    final availabilityUnit = proposal['availability_unit'] as String? ?? 'Horas';
-                    final status = _getProposalStatus(proposal['status'] as String?);
-                    
-                    return SentProposalCard(
-                      name: clientName,
-                      location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
-                      price: _formatCurrency(price.toDouble()),
-                      timeframe: 'Em até $availabilityValue $availabilityUnit',
-                      status: status,
-                    );
-                  },
-                ),
-              );
+                  const SizedBox(width: AppSpacing.spacing12),
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Aceitas',
+                      count: counts['accepted'] ?? 0,
+                      icon: Icons.check_circle,
+                      isSelected: _selectedFilters[1],
+                      onTap: () => setState(() {
+                        _selectedFilters[1] = !_selectedFilters[1];
+                      }),
+                      color: AppColorsSuccess.success600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.spacing12),
+              // Segunda linha: Rejeitadas e Pagas
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Rejeitadas',
+                      count: counts['rejected'] ?? 0,
+                      icon: Icons.cancel,
+                      isSelected: _selectedFilters[2],
+                      onTap: () => setState(() {
+                        _selectedFilters[2] = !_selectedFilters[2];
+                      }),
+                      color: AppColorsError.error600,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.spacing12),
+                  Expanded(
+                    child: _buildFilterChip(
+                      text: 'Pagas',
+                      count: counts['paid'] ?? 0,
+                      icon: Icons.verified,
+                      isSelected: _selectedFilters[3],
+                      onTap: () => setState(() {
+                        _selectedFilters[3] = !_selectedFilters[3];
+                      }),
+                      color: Colors.purple.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        
+        // Lista de propostas
+        Expanded(
+          child: _isLoadingProposals
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColorsPrimary.primary700,
+                  ),
+                )
+              : proposals.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Nenhuma proposta encontrada',
+                        style: AppTypography.contentRegular.copyWith(
+                          color: AppColorsNeutral.neutral500,
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadProposals,
+                      color: AppColorsPrimary.primary700,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.spacing24,
+                          0,
+                          AppSpacing.spacing24,
+                          AppSpacing.spacing24,
+                        ),
+                        itemCount: proposals.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: AppSpacing.spacing16),
+                        itemBuilder: (context, index) {
+                          final proposal = proposals[index];
+                          final serviceRequest = proposal['service_requests'] as Map<String, dynamic>?;
+                          final client = serviceRequest?['profiles'] as Map<String, dynamic>?;
+                          final paymentStatus = proposal['payment_status'] as String?;
+                          
+                          final clientName = client?['full_name'] as String? ?? 'Cliente';
+                          final distance = proposal['distance'] as double? ?? 0.0;
+                          final price = proposal['proposed_price'] as num? ?? 0;
+                          final availabilityValue = proposal['availability_value'] as int? ?? 0;
+                          final availabilityUnit = proposal['availability_unit'] as String? ?? 'Horas';
+                          final serviceName = serviceRequest?['service_description'] as String? ?? 'Serviço';
+                          
+                          // Se proposta está paga, mostrar card especial com botão de chat
+                          if (paymentStatus == 'paid') {
+                            final paymentDetails = proposal['payment_details'] as Map<String, dynamic>?;
+                            return PaidProposalCard(
+                              name: clientName,
+                              location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                              price: _formatCurrency(price.toDouble()),
+                              serviceName: serviceName,
+                              paymentMethod: paymentDetails?['payment_method'] as String?,
+                              paymentDate: paymentDetails?['created_at'] as String?,
+                              releaseStatus: paymentDetails?['release_status'] as String?,
+                              onChat: () {
+                                // TODO: Navegar para chat
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Chat em desenvolvimento'),
+                                  ),
+                                );
+                              },
+                            );
+                          }
+                          
+                          // Proposta normal (pending, accepted, rejected)
+                          final status = _getProposalStatus(proposal['status'] as String?);
+                          
+                          return SentProposalCard(
+                            name: clientName,
+                            location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                            price: _formatCurrency(price.toDouble()),
+                            timeframe: 'Em até $availabilityValue $availabilityUnit',
+                            status: status,
+                          );
+                        },
+                      ),
+                    ),
+        ),
+      ],
+    );
   }
 
   Widget _buildFilterChip({
     required String text,
-    required String iconPath,
+    required int count,
+    required IconData icon,
     required bool isSelected,
     required VoidCallback onTap,
+    required Color color,
   }) {
-    return OutlinedButton.icon(
+    return OutlinedButton(
       onPressed: onTap,
-      icon: SvgPicture.asset(
-        iconPath,
-        height: 16,
-        colorFilter: ColorFilter.mode(
-          isSelected
-              ? (text == 'Aceitas'
-                  ? AppColorsSuccess.success600
-                  : AppColorsError.error600)
-              : AppColorsNeutral.neutral500,
-          BlendMode.srcIn,
-        ),
-      ),
-      label: Text(text),
       style: OutlinedButton.styleFrom(
-        backgroundColor: isSelected
-            ? (text == 'Aceitas'
-                ? AppColorsSuccess.success50
-                : AppColorsError.error50)
-            : AppColorsNeutral.neutral0,
-        foregroundColor: isSelected
-            ? (text == 'Aceitas'
-                ? AppColorsSuccess.success700
-                : AppColorsError.error700)
-            : AppColorsNeutral.neutral600,
+        backgroundColor: isSelected ? color.withOpacity(0.1) : AppColorsNeutral.neutral0,
+        foregroundColor: isSelected ? color : AppColorsNeutral.neutral600,
         side: BorderSide(
-          color: isSelected
-              ? (text == 'Aceitas'
-                  ? AppColorsSuccess.success200
-                  : AppColorsError.error200)
-              : AppColorsNeutral.neutral200,
+          color: isSelected ? color.withOpacity(0.5) : AppColorsNeutral.neutral200,
+          width: isSelected ? 2 : 1,
         ),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.radius8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.spacing12,
+          vertical: AppSpacing.spacing12,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: isSelected ? color : AppColorsNeutral.neutral500,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              style: AppTypography.contentMedium.copyWith(
+                color: isSelected ? color : AppColorsNeutral.neutral600,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Contador
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isSelected ? color : AppColorsNeutral.neutral300,
+              borderRadius: AppRadius.radius4,
+            ),
+            child: Text(
+              '$count',
+              style: AppTypography.captionBold.copyWith(
+                color: isSelected ? Colors.white : AppColorsNeutral.neutral700,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
