@@ -1,0 +1,25 @@
+workflows:
+
+  flutter-ios-simulator:
+
+    name: Flutter iOS Simulator
+
+    environment:
+
+      flutter: stable
+
+      xcode: 16.2
+
+    scripts:
+
+      - name: Install dependencies
+        script: |
+          flutter pub get
+      
+      - name: Build iOS Simulator
+        script: |
+          flutter build ios --simulator
+
+    artifacts:
+
+      - build/ios/iphonesimulator/Runner.app
