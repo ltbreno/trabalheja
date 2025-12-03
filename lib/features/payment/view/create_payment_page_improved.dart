@@ -10,7 +10,15 @@ import 'package:trabalheja/features/payment/service/payment_service.dart';
 import 'package:trabalheja/features/payment/view/card_form_page.dart';
 import 'package:trabalheja/features/payment/view/payment_success_page.dart';
 import 'package:trabalheja/features/payment/view/payment_failure_page.dart';
+import 'package:trabalheja/features/payment/view/pix_payment_page.dart';
+import 'package:trabalheja/features/payment/view/credit_card_processing_page.dart';
 import 'package:trabalheja/core/constants/pagarme_config.dart';
+
+/// Enum para métodos de pagamento
+enum PaymentMethod {
+  creditCard,
+  pix,
+}
 
 /// Página melhorada de pagamento com:
 /// - Dados do cliente pré-preenchidos do Supabase
@@ -40,11 +48,13 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
   // Controllers
   final _cardTokenController = TextEditingController();
   final _cpfController = TextEditingController();
+  final _phoneController = TextEditingController();
   
   // Estado
   bool _isLoading = false;
   bool _isLoadingData = true;
   int _selectedInstallments = 1;
+  PaymentMethod _selectedPaymentMethod = PaymentMethod.creditCard;
   
   // Dados do serviço
   Map<String, dynamic>? _serviceRequest;
@@ -66,6 +76,7 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
   void dispose() {
     _cardTokenController.dispose();
     _cpfController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -165,97 +176,25 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
     setState(() => _isLoading = true);
 
     try {
-      final cardToken = _cardTokenController.text.trim();
-      if (cardToken.isEmpty) {
-        throw Exception('Por favor, adicione os dados do cartão primeiro');
-      }
-
       final cpf = _cpfController.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
-      if (cpf.isEmpty) {
-        throw Exception('Por favor, informe o CPF');
+      if (cpf.isEmpty || cpf.length != 11) {
+        throw Exception('CPF inválido');
       }
 
-      if (cpf.length != 11) {
-        throw Exception('CPF inválido. Deve conter 11 dígitos');
+      final phone = _phoneController.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+      if (phone.isEmpty || phone.length < 10) {
+        throw Exception('Telefone inválido');
       }
 
       // Converter para centavos
       final amountInCents = (_totalAmount * 100).toInt();
 
-      print('📡 Processando pagamento...');
-      print('   Valor total: R\$ ${_totalAmount.toStringAsFixed(2)}');
-      print('   Parcelas: ${_selectedInstallments}x');
-      print('   CPF: ${cpf.substring(0, 3)}.***.***-${cpf.substring(9)}');
-
-      final result = await _paymentService.createPayment(
-        amount: amountInCents,
-        cardToken: cardToken,
-        customerName: _clientProfile!['full_name'] as String,
-        customerEmail: _clientProfile!['email'] as String,
-        customerDocument: cpf,
-      );
-
-      if (!mounted) return;
-
-      // Extrair dados do resultado
-      final paymentData = result['data'] as Map<String, dynamic>?;
-      final paymentStatus = paymentData?['status'] as String?;
-      final orderId = paymentData?['pagarme_order_id'] as String?;
-      final paymentId = paymentData?['payment_id']?.toString();
-
-      // Verificar status
-      if (paymentStatus == 'paid') {
-        // ✅ SUCESSO - Salvar pagamento no Supabase
-        print('💾 Salvando pagamento no Supabase...');
-        
-        try {
-          await _supabase.from('payments').insert({
-            'service_request_id': widget.serviceRequestId,
-            'proposal_id': widget.proposalId,
-            'client_id': _supabase.auth.currentUser!.id,
-            'freelancer_id': _freelancerProfile!['id'],
-            'amount': _serviceAmount,
-            'platform_fee': _platformFee,
-            'total_amount': _totalAmount,
-            'installments': _selectedInstallments,
-            'pagarme_order_id': orderId,
-            'pagarme_payment_id': paymentId,
-            'status': 'paid',
-            'customer_name': _clientProfile!['full_name'],
-            'customer_email': _clientProfile!['email'],
-            'customer_document': _cpfController.text.trim().replaceAll(RegExp(r'[^0-9]'), ''),
-            'retained_at': DateTime.now().toIso8601String(),
-            'release_status': 'retained',
-          });
-          
-          print('✅ Pagamento salvo no Supabase com sucesso!');
-        } catch (e) {
-          print('⚠️ Erro ao salvar pagamento no Supabase: $e');
-          // Continuar mesmo se falhar ao salvar (pagamento já foi processado)
-        }
-        
-        if (!mounted) return;
-        
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => PaymentSuccessPage(
-              amount: _totalAmount,
-              orderId: orderId,
-              paymentId: paymentId,
-            ),
-          ),
-        );
+      if (_selectedPaymentMethod == PaymentMethod.pix) {
+        // ===== PAGAMENTO PIX =====
+        await _processPixPayment(amountInCents, cpf, phone);
       } else {
-        // ❌ FALHA
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => PaymentFailurePage(
-              errorMessage: paymentStatus == 'failed'
-                  ? 'Pagamento recusado. Verifique os dados do cartão.'
-                  : 'Falha ao processar o pagamento',
-            ),
-          ),
-        );
+        // ===== PAGAMENTO CARTÃO DE CRÉDITO =====
+        await _processCreditCardPayment(amountInCents, cpf);
       }
     } catch (e) {
       if (!mounted) return;
@@ -271,6 +210,225 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _processPixPayment(int amountInCents, String cpf, String phone) async {
+    print('📡 Processando pagamento PIX...');
+    print('   Valor total: R\$ ${_totalAmount.toStringAsFixed(2)}');
+    print('   CPF: ${cpf.substring(0, 3)}.***.***-${cpf.substring(9)}');
+    print('   Telefone: (${phone.substring(0, 2)}) ${phone.substring(2)}');
+
+    // Extrair DDD e número
+    final areaCode = phone.substring(0, 2);
+    final number = phone.substring(2);
+
+    final result = await _paymentService.createPixPayment(
+      amount: amountInCents,
+      customerName: _clientProfile!['full_name'] as String,
+      customerEmail: _clientProfile!['email'] as String,
+      customerDocument: cpf,
+      customerPhone: {
+        'area_code': areaCode,
+        'number': number,
+      },
+      description: 'Pagamento de serviço - ${_serviceRequest!['service_description']}',
+    );
+
+    if (!mounted) return;
+
+    // Extrair dados do resultado
+    final pixData = result['data'] as Map<String, dynamic>?;
+    
+    print('📦 Dados recebidos do PIX:');
+    print('   pixData: $pixData');
+    
+    // Extrair order_id
+    String? orderId = pixData?['pagarme_order_id'] as String?;
+    String? qrCode;
+    String? qrCodeUrl;
+    
+    // O QR Code pode estar em diferentes lugares dependendo da estrutura da API
+    if (pixData != null) {
+      // Tentar buscar em 'pix' (estrutura atual da sua API)
+      final pixInfo = pixData['pix'] as Map<String, dynamic>?;
+      if (pixInfo != null) {
+        print('   🔍 Buscando QR Code em pix...');
+        qrCode = pixInfo['qr_code'] as String?;
+        qrCodeUrl = pixInfo['qr_code_url'] as String?;
+        if (qrCode != null) {
+          final preview = qrCode.length > 50 ? '${qrCode.substring(0, 50)}...' : qrCode;
+          print('   qr_code: $preview');
+        }
+        print('   qr_code_url: $qrCodeUrl');
+      }
+      
+      // Se não encontrou em 'pix', tentar em 'last_transaction'
+      if (qrCode == null || qrCodeUrl == null) {
+        final lastTransaction = pixData['last_transaction'] as Map<String, dynamic>?;
+        if (lastTransaction != null) {
+          print('   🔍 Buscando QR Code em last_transaction...');
+          qrCode = lastTransaction['qr_code'] as String?;
+          qrCodeUrl = lastTransaction['qr_code_url'] as String?;
+          if (qrCode != null) {
+            final preview = qrCode.length > 50 ? '${qrCode.substring(0, 50)}...' : qrCode;
+            print('   qr_code: $preview');
+          }
+          print('   qr_code_url: $qrCodeUrl');
+        }
+      }
+      
+      // Se ainda não encontrou, tentar no nível principal
+      if (qrCode == null || qrCodeUrl == null) {
+        print('   🔍 Buscando QR Code no nível principal...');
+        qrCode = pixData['qr_code'] as String?;
+        qrCodeUrl = pixData['qr_code_url'] as String?;
+        if (qrCode != null) {
+          final preview = qrCode.length > 50 ? '${qrCode.substring(0, 50)}...' : qrCode;
+          print('   qr_code: $preview');
+          print('   qr_code_url: $qrCodeUrl');
+        }
+      }
+    }
+
+    // Verificar status para garantir que é um PIX aguardando pagamento
+    final status = pixData?['status'] as String?;
+    print('   📊 Status: $status');
+    
+    // Status válidos para mostrar QR Code: pending, waiting_payment
+    final validStatuses = ['pending', 'waiting_payment'];
+    
+    if (orderId != null && qrCode != null && validStatuses.contains(status)) {
+      print('✅ QR Code PIX gerado com sucesso! Navegando para tela de pagamento...');
+      
+      // Navegar para tela de PIX com QR Code
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => PixPaymentPage(
+            orderId: orderId!,
+            qrCode: qrCode!,
+            qrCodeUrl: qrCodeUrl,
+            amount: _totalAmount,
+            serviceRequestId: widget.serviceRequestId,
+            proposalId: widget.proposalId,
+            clientProfile: _clientProfile!,
+            freelancerProfile: _freelancerProfile,
+            serviceAmount: _serviceAmount,
+            platformFee: _platformFee,
+            customerDocument: cpf,
+          ),
+        ),
+      );
+    } else {
+      print('❌ Erro ao gerar QR Code PIX:');
+      print('   orderId: $orderId');
+      print('   qrCode presente: ${qrCode != null}');
+      print('   status: $status');
+      throw Exception('Erro ao gerar QR Code PIX. Status: $status');
+    }
+  }
+
+  Future<void> _processCreditCardPayment(int amountInCents, String cpf) async {
+    final cardToken = _cardTokenController.text.trim();
+    if (cardToken.isEmpty) {
+      throw Exception('Por favor, adicione os dados do cartão primeiro');
+    }
+
+    print('📡 Processando pagamento com cartão...');
+    print('   Valor total: R\$ ${_totalAmount.toStringAsFixed(2)}');
+    print('   Parcelas: ${_selectedInstallments}x');
+    print('   CPF: ${cpf.substring(0, 3)}.***.***-${cpf.substring(9)}');
+
+    final result = await _paymentService.createPayment(
+      amount: amountInCents,
+      cardToken: cardToken,
+      customerName: _clientProfile!['full_name'] as String,
+      customerEmail: _clientProfile!['email'] as String,
+      customerDocument: cpf,
+    );
+
+    if (!mounted) return;
+
+    // Extrair dados do resultado
+    final paymentData = result['data'] as Map<String, dynamic>?;
+    final paymentStatus = paymentData?['status'] as String?;
+    final orderId = paymentData?['pagarme_order_id'] as String?;
+    final paymentId = paymentData?['payment_id']?.toString();
+
+    // Verificar status
+    print('📊 Status do pagamento com cartão: $paymentStatus');
+    
+    if (paymentStatus == 'paid') {
+      // ✅ SUCESSO - Pagamento aprovado imediatamente
+      print('💾 Salvando pagamento no Supabase...');
+      
+      try {
+        await _supabase.from('payments').insert({
+          'service_request_id': widget.serviceRequestId,
+          'proposal_id': widget.proposalId,
+          'client_id': _supabase.auth.currentUser!.id,
+          'freelancer_id': _freelancerProfile!['id'],
+          'amount': _serviceAmount,
+          'platform_fee': _platformFee,
+          'total_amount': _totalAmount,
+          'installments': _selectedInstallments,
+          'pagarme_order_id': orderId,
+          'pagarme_payment_id': paymentId,
+          'status': 'paid',
+          'customer_name': _clientProfile!['full_name'],
+          'customer_email': _clientProfile!['email'],
+          'customer_document': cpf,
+          'retained_at': DateTime.now().toIso8601String(),
+          'release_status': 'retained',
+        });
+        
+        print('✅ Pagamento salvo no Supabase com sucesso!');
+      } catch (e) {
+        print('⚠️ Erro ao salvar pagamento no Supabase: $e');
+        // Continuar mesmo se falhar ao salvar (pagamento já foi processado)
+      }
+      
+      if (!mounted) return;
+      
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => PaymentSuccessPage(
+            amount: _totalAmount,
+            orderId: orderId,
+            paymentId: paymentId,
+          ),
+        ),
+      );
+    } else if (paymentStatus == 'processing' || paymentStatus == 'pending' || paymentStatus == 'authorized') {
+      // ⏳ PROCESSANDO - Aguardar confirmação via Realtime
+      print('⏳ Pagamento em processamento. Aguardando confirmação via webhook...');
+      
+      if (!mounted) return;
+      
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => CreditCardProcessingPage(
+            orderId: orderId ?? '',
+            amount: _totalAmount,
+            paymentId: paymentId,
+          ),
+        ),
+      );
+    } else {
+      // ❌ FALHA - Pagamento recusado ou erro
+      print('❌ Pagamento recusado ou falhou');
+      
+      if (!mounted) return;
+      
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => PaymentFailurePage(
+            errorMessage: paymentStatus == 'failed' || paymentStatus == 'refused'
+                ? 'Pagamento recusado. Verifique os dados do cartão.'
+                : 'Falha ao processar o pagamento',
+          ),
+        ),
+      );
     }
   }
 
@@ -333,18 +491,30 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
 
                 const SizedBox(height: AppSpacing.spacing24),
 
+                // Seletor de Método de Pagamento
+                _buildPaymentMethodSelector(),
+
+                const SizedBox(height: AppSpacing.spacing24),
+
                 // Campo de CPF
                 _buildCpfField(),
 
                 const SizedBox(height: AppSpacing.spacing24),
 
-                // Parcelamento
-                _buildInstallmentSelector(),
+                // Campo de Telefone (sempre visível)
+                _buildPhoneField(),
 
                 const SizedBox(height: AppSpacing.spacing24),
 
-                // Método de Pagamento
-                _buildPaymentMethod(),
+                // Parcelamento (apenas para cartão de crédito)
+                if (_selectedPaymentMethod == PaymentMethod.creditCard) ...[
+                  _buildInstallmentSelector(),
+                  const SizedBox(height: AppSpacing.spacing24),
+                ],
+
+                // Método de Pagamento (Cartão ou PIX)
+                if (_selectedPaymentMethod == PaymentMethod.creditCard)
+                  _buildPaymentMethod(),
 
                 const SizedBox(height: AppSpacing.spacing32),
 
@@ -441,6 +611,116 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
     );
   }
 
+  Widget _buildPaymentMethodSelector() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.spacing16),
+      decoration: BoxDecoration(
+        color: AppColorsNeutral.neutral50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColorsNeutral.neutral200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.payment, color: AppColorsPrimary.primary800, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Escolha a forma de pagamento',
+                style: AppTypography.contentBold.copyWith(
+                  color: AppColorsNeutral.neutral900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.spacing16),
+          
+          Row(
+            children: [
+              Expanded(
+                child: _buildPaymentMethodOption(
+                  method: PaymentMethod.creditCard,
+                  icon: Icons.credit_card,
+                  label: 'Cartão de Crédito',
+                  subtitle: 'Até 12x',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildPaymentMethodOption(
+                  method: PaymentMethod.pix,
+                  icon: Icons.pix,
+                  label: 'PIX',
+                  subtitle: 'Aprovação imediata',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethodOption({
+    required PaymentMethod method,
+    required IconData icon,
+    required String label,
+    required String subtitle,
+  }) {
+    final isSelected = _selectedPaymentMethod == method;
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedPaymentMethod = method;
+          // Limpar token do cartão se mudar para PIX
+          if (method == PaymentMethod.pix) {
+            _cardTokenController.clear();
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColorsPrimary.primary50 : AppColorsNeutral.neutral0,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColorsPrimary.primary700 : AppColorsNeutral.neutral300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 32,
+              color: isSelected ? AppColorsPrimary.primary700 : AppColorsNeutral.neutral600,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: AppTypography.captionBold.copyWith(
+                color: isSelected ? AppColorsPrimary.primary700 : AppColorsNeutral.neutral900,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: AppTypography.captionRegular.copyWith(
+                color: AppColorsNeutral.neutral600,
+                fontSize: 11,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCpfField() {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.spacing16),
@@ -492,6 +772,66 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
           
           Text(
             'O CPF é necessário para processar o pagamento',
+            style: AppTypography.captionRegular.copyWith(
+              color: AppColorsNeutral.neutral500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhoneField() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.spacing16),
+      decoration: BoxDecoration(
+        color: AppColorsNeutral.neutral50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColorsNeutral.neutral200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.phone_outlined, color: AppColorsPrimary.primary800, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Telefone',
+                style: AppTypography.contentBold.copyWith(
+                  color: AppColorsNeutral.neutral900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.spacing16),
+          
+          AppTextField(
+            label: 'Telefone com DDD',
+            hintText: '(11) 99999-9999',
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(11),
+              _PhoneInputFormatter(),
+            ],
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, informe o telefone';
+              }
+              final phone = value.replaceAll(RegExp(r'[^0-9]'), '');
+              if (phone.length < 10 || phone.length > 11) {
+                return 'Telefone inválido';
+              }
+              return null;
+            },
+          ),
+          
+          const SizedBox(height: 8),
+          
+          Text(
+            'Necessário para ${_selectedPaymentMethod == PaymentMethod.pix ? 'pagamento PIX' : 'contato'}',
             style: AppTypography.captionRegular.copyWith(
               color: AppColorsNeutral.neutral500,
             ),
@@ -631,12 +971,16 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
   }
 
   Widget _buildPaymentButton() {
-    final canPay = _cardTokenController.text.isNotEmpty;
+    final canPay = _selectedPaymentMethod == PaymentMethod.pix 
+        ? true // PIX não precisa de token de cartão
+        : _cardTokenController.text.isNotEmpty;
     
     return AppButton(
       text: _isLoading
           ? 'Processando...'
-          : 'Pagar R\$ ${_totalAmount.toStringAsFixed(2)}',
+          : _selectedPaymentMethod == PaymentMethod.pix
+              ? 'Gerar QR Code PIX - R\$ ${_totalAmount.toStringAsFixed(2)}'
+              : 'Pagar R\$ ${_totalAmount.toStringAsFixed(2)}',
       onPressed: canPay && !_isLoading ? _processPayment : null,
       isLoading: _isLoading,
     );
@@ -721,6 +1065,56 @@ class _CpfInputFormatter extends TextInputFormatter {
         buffer.write('-');
       }
       buffer.write(digitsOnly[i]);
+    }
+
+    final formatted = buffer.toString();
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+/// Formatador de Telefone (11) 99999-9999
+class _PhoneInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    final digitsOnly = text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (digitsOnly.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    final buffer = StringBuffer();
+    
+    // Adicionar DDD
+    if (digitsOnly.isNotEmpty) {
+      buffer.write('(');
+      buffer.write(digitsOnly.substring(0, digitsOnly.length > 2 ? 2 : digitsOnly.length));
+      if (digitsOnly.length >= 2) {
+        buffer.write(') ');
+      }
+    }
+    
+    // Adicionar número
+    if (digitsOnly.length > 2) {
+      final number = digitsOnly.substring(2);
+      if (number.length <= 4) {
+        buffer.write(number);
+      } else if (number.length <= 5) {
+        buffer.write(number.substring(0, 4));
+        buffer.write('-');
+        buffer.write(number.substring(4));
+      } else {
+        // Celular com 9 dígitos
+        buffer.write(number.substring(0, 5));
+        buffer.write('-');
+        buffer.write(number.substring(5, number.length > 9 ? 9 : number.length));
+      }
     }
 
     final formatted = buffer.toString();

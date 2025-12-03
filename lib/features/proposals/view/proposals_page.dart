@@ -13,6 +13,7 @@ import 'package:trabalheja/features/proposals/widgets/received_proposal_card.dar
 import 'package:trabalheja/features/proposals/widgets/accepted_proposal_card.dart';
 import 'package:trabalheja/features/proposals/widgets/sent_proposal_card.dart' show SentProposalCard, ProposalStatus;
 import 'package:trabalheja/features/payment/view/create_payment_page_improved.dart';
+import 'package:trabalheja/features/payment/view/release_payment_page.dart';
 
 class ProposalsPage extends StatefulWidget {
   const ProposalsPage({super.key});
@@ -116,19 +117,19 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   /// Verifica se existe um pagamento aprovado para a proposta
-  Future<bool> _checkIfPaymentExists(String proposalId) async {
+  Future<Map<String, dynamic>?> _getPaymentData(String proposalId) async {
     try {
       final payment = await _supabase
           .from('payments')
-          .select('id, status')
+          .select('*')
           .eq('proposal_id', proposalId)
           .eq('status', 'paid')
           .maybeSingle();
       
-      return payment != null;
+      return payment;
     } catch (e) {
-      print('⚠️ Erro ao verificar pagamento: $e');
-      return false;
+      print('⚠️ Erro ao buscar dados do pagamento: $e');
+      return null;
     }
   }
 
@@ -585,11 +586,13 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           
                           // Se a proposta foi aceita, mostrar card especial com botão de pagamento
                           if (status == 'accepted') {
-                            // Verificar se existe pagamento para esta proposta
-                            return FutureBuilder<bool>(
-                              future: _checkIfPaymentExists(proposalId),
+                            // Buscar dados completos do pagamento
+                            return FutureBuilder<Map<String, dynamic>?>(
+                              future: _getPaymentData(proposalId),
                               builder: (context, snapshot) {
-                                final hasPaidPayment = snapshot.data ?? false;
+                                final paymentData = snapshot.data;
+                                final hasPaidPayment = paymentData != null;
+                                final releaseStatus = paymentData?['release_status'] as String?;
                                 
                                 return AcceptedProposalCard(
                                   name: freelancerName,
@@ -597,6 +600,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                   price: _formatCurrency(price.toDouble()),
                                   timeframe: 'Em até $availabilityValue $availabilityUnit',
                                   hasPaidPayment: hasPaidPayment,
+                                  paymentReleaseStatus: releaseStatus,
                                   onPay: () {
                                     // Navegar para tela de pagamento
                                     Navigator.push(
@@ -612,14 +616,32 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                       _loadProposals();
                                     });
                                   },
-                                  onChat: () {
+                                  onChat: hasPaidPayment ? () {
                                     // TODO: Navegar para chat
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('Chat em desenvolvimento'),
                                       ),
                                     );
-                                  },
+                                  } : null,
+                                  onReleasePayment: (hasPaidPayment && releaseStatus == 'retained' && paymentData != null && freelancer != null) ? () {
+                                    // Navegar para tela de liberar pagamento
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ReleasePaymentPage(
+                                          proposalId: proposalId,
+                                          paymentData: paymentData,
+                                          freelancerProfile: freelancer,
+                                        ),
+                                      ),
+                                    ).then((released) {
+                                      if (released == true) {
+                                        // Recarregar propostas após liberar pagamento
+                                        _loadProposals();
+                                      }
+                                    });
+                                  } : null,
                                 );
                               },
                             );

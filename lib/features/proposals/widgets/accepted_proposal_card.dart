@@ -13,7 +13,9 @@ class AcceptedProposalCard extends StatelessWidget {
   final String timeframe;
   final VoidCallback onPay;
   final VoidCallback? onChat;
+  final VoidCallback? onReleasePayment;
   final bool hasPaidPayment; // Se true, pagamento já foi realizado
+  final String? paymentReleaseStatus; // Status de liberação: 'retained', 'released', null
 
   const AcceptedProposalCard({
     super.key,
@@ -23,7 +25,9 @@ class AcceptedProposalCard extends StatelessWidget {
     required this.timeframe,
     required this.onPay,
     this.onChat,
+    this.onReleasePayment,
     this.hasPaidPayment = false,
+    this.paymentReleaseStatus,
   });
 
   @override
@@ -106,27 +110,25 @@ class AcceptedProposalCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: hasPaidPayment ? Colors.green.shade50 : Colors.blue.shade50,
+              color: _getStatusColor().withOpacity(0.1),
               borderRadius: AppRadius.radius8,
               border: Border.all(
-                color: hasPaidPayment ? Colors.green.shade200 : Colors.blue.shade200,
+                color: _getStatusColor().withOpacity(0.3),
               ),
             ),
             child: Row(
               children: [
                 Icon(
-                  hasPaidPayment ? Icons.check_circle_outline : Icons.info_outline,
+                  _getStatusIcon(),
                   size: 20,
-                  color: hasPaidPayment ? Colors.green.shade700 : Colors.blue.shade700,
+                  color: _getStatusColor(),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    hasPaidPayment
-                        ? 'Pagamento realizado! Converse com o freelancer'
-                        : 'Realize o pagamento para iniciar o serviço',
+                    _getStatusMessage(),
                     style: AppTypography.captionMedium.copyWith(
-                      color: hasPaidPayment ? Colors.green.shade900 : Colors.blue.shade900,
+                      color: _getStatusColor().withOpacity(0.9),
                     ),
                   ),
                 ),
@@ -141,6 +143,36 @@ class AcceptedProposalCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Color _getStatusColor() {
+    if (!hasPaidPayment) {
+      return Colors.blue.shade700;
+    }
+    if (paymentReleaseStatus == 'released') {
+      return Colors.purple.shade700;
+    }
+    return Colors.green.shade700;
+  }
+
+  IconData _getStatusIcon() {
+    if (!hasPaidPayment) {
+      return Icons.info_outline;
+    }
+    if (paymentReleaseStatus == 'released') {
+      return Icons.verified;
+    }
+    return Icons.check_circle_outline;
+  }
+
+  String _getStatusMessage() {
+    if (!hasPaidPayment) {
+      return 'Realize o pagamento para iniciar o serviço';
+    }
+    if (paymentReleaseStatus == 'released') {
+      return 'Pagamento liberado para o freelancer ✓';
+    }
+    return 'Pagamento realizado! Libere após finalizar o serviço';
   }
 
   Widget _buildCardActions() {
@@ -171,8 +203,60 @@ class AcceptedProposalCard extends StatelessWidget {
             ),
           ),
 
-        // Se pagamento FOI realizado: Mostrar botão de chat
-        if (hasPaidPayment && onChat != null)
+        // Se pagamento FOI realizado mas ainda não foi liberado: Mostrar botões de chat e liberar
+        if (hasPaidPayment && paymentReleaseStatus == 'retained') ...[
+          // Botão de chat
+          if (onChat != null)
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                label: Text(
+                  'Conversar com Freelancer',
+                  style: AppTypography.contentBold.copyWith(
+                    color: AppColorsNeutral.neutral0,
+                  ),
+                ),
+                onPressed: onChat,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColorsSuccess.success700,
+                  foregroundColor: AppColorsNeutral.neutral0,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadius.radius8,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          // Botão de liberar pagamento
+          if (onReleasePayment != null)
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.account_balance_wallet, size: 20),
+                label: Text(
+                  'Liberar Pagamento',
+                  style: AppTypography.contentBold.copyWith(
+                    color: AppColorsPrimary.primary700,
+                  ),
+                ),
+                onPressed: onReleasePayment,
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColorsPrimary.primary700, width: 2),
+                  foregroundColor: AppColorsPrimary.primary700,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadius.radius8,
+                  ),
+                ),
+              ),
+            ),
+        ],
+
+        // Se pagamento FOI liberado: Apenas mostrar botão de chat
+        if (hasPaidPayment && paymentReleaseStatus == 'released' && onChat != null)
           SizedBox(
             width: double.infinity,
             height: 48,
