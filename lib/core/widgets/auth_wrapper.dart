@@ -2,9 +2,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trabalheja/core/widgets/MainAppShell.dart';
 import 'package:trabalheja/core/auth/auth_state_notifier.dart';
 import 'package:trabalheja/features/auth/view/login_page.dart';
+import 'package:trabalheja/features/onboarding/view/onboarding_improved_page.dart';
 
 /// Widget que gerencia a navegação baseada no estado de autenticação
 /// 
@@ -22,6 +24,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
   late final StreamSubscription<AuthState> _authSubscription;
   late final AuthStateNotifier _authNotifier;
   Timer? _checkTimer;
+  bool _isFirstTime = true; // Assumir primeira vez inicialmente
+  bool _isCheckingFirstTime = true; // Flag para saber se ainda está verificando
 
   @override
   void initState() {
@@ -30,6 +34,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
     
     // Verificar sessão inicial
     _lastKnownSession = supabase.auth.currentSession;
+    
+    // Verificar se é a primeira vez do usuário
+    _checkFirstTime();
     
     // Inicializar o notificador
     _authNotifier = AuthStateNotifier();
@@ -55,6 +62,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
       _checkAndUpdateSession();
     });
+  }
+
+  Future<void> _checkFirstTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+      
+      if (mounted) {
+        setState(() {
+          _isFirstTime = !hasSeenOnboarding;
+          _isCheckingFirstTime = false;
+        });
+      }
+    } catch (e) {
+      print('Erro ao verificar primeira vez: $e');
+      if (mounted) {
+        setState(() {
+          _isFirstTime = false; // Em caso de erro, não mostrar onboarding
+          _isCheckingFirstTime = false;
+        });
+      }
+    }
   }
 
   void _onAuthNotified() {
@@ -112,20 +141,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
       });
     }
     
+    // Mostrar loading enquanto verifica se é primeira vez
+    if (_isCheckingFirstTime) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
     // Usar currentSession diretamente (sempre o mais atualizado)
-    // Usar _lastKnownSession apenas para a Key, mas currentSession para a decisão
     final isAuthenticated = currentSession != null;
     
     // Criar uma Key baseada na sessão para forçar rebuild quando mudar
-    // Usar currentSession para garantir que a Key mude quando a sessão mudar
     final sessionId = currentSession?.accessToken ?? 'no-session';
     final authKey = ValueKey('auth-$sessionId');
 
-    // Se autenticado, mostrar MainAppShell
-    // Se não autenticado, mostrar LoginPage
-    // IMPORTANTE: Usar currentSession para a decisão, não _lastKnownSession
+    // Fluxo de navegação:
+    // 1. Se autenticado: MainAppShell
+    // 2. Se não autenticado e primeira vez: OnboardingImprovedPage
+    // 3. Se não autenticado e não é primeira vez: LoginPage
     if (isAuthenticated) {
       return MainAppShell(key: authKey);
+    } else if (_isFirstTime) {
+      return OnboardingImprovedPage(key: authKey);
     } else {
       return LoginPage(key: authKey);
     }

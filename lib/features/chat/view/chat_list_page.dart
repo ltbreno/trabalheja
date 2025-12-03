@@ -1,9 +1,12 @@
 // lib/features/chat/view/chat_list_page.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/core/widgets/skeleton_loader.dart';
+import 'package:trabalheja/core/widgets/empty_state.dart';
 import 'package:trabalheja/features/chat/view/chat_detail_page.dart';
 import 'package:trabalheja/features/chat/widgets/chat_list_tile.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
@@ -18,6 +21,7 @@ class ChatListPage extends StatefulWidget {
 class _ChatListPageState extends State<ChatListPage> {
   final _searchController = TextEditingController();
   final _supabase = Supabase.instance.client;
+  Timer? _debounce;
   
   List<Map<String, dynamic>> _conversations = [];
   bool _isLoading = true;
@@ -28,12 +32,24 @@ class _ChatListPageState extends State<ChatListPage> {
     super.initState();
     _loadConversations();
     _subscribeToConversations();
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _searchQuery = _searchController.text;
+      });
+    });
   }
 
   Future<void> _loadConversations() async {
@@ -192,6 +208,50 @@ class _ChatListPageState extends State<ChatListPage> {
     }).toList();
   }
 
+  Widget _buildAnimatedChatTile({
+    required Map<String, dynamic> conversation,
+    required String conversationId,
+    required Map<String, dynamic>? otherParticipant,
+    required int index,
+  }) {
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 200 + (index * 50)),
+      tween: Tween(begin: 0.0, end: 1.0),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(20 * (1 - value), 0),
+          child: Opacity(
+            opacity: value,
+            child: child,
+          ),
+        );
+      },
+      child: ChatListTile(
+        initials: conversation['other_initials'] as String? ?? 'U',
+        name: conversation['other_name'] as String? ?? 'Usuário',
+        lastMessage: conversation['last_message'] as String? ?? 'Sem mensagens',
+        time: _formatTime(conversation['last_message_time'] as String?),
+        unreadCount: conversation['unread_count'] as int? ?? 0,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatDetailPage(
+                conversationId: conversationId,
+                otherParticipantId: otherParticipant?['id'] as String?,
+                name: conversation['other_name'] as String? ?? 'Usuário',
+                initials: conversation['other_initials'] as String? ?? 'U',
+              ),
+            ),
+          ).then((_) {
+            _loadConversations();
+          });
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -225,30 +285,22 @@ class _ChatListPageState extends State<ChatListPage> {
                 hintText: 'Pesquisar',
                 controller: _searchController,
                 prefixIconPath: 'assets/icons/search.svg',
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
               ),
             ),
             
             // Lista de Conversas
             Expanded(
               child: _isLoading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: AppColorsPrimary.primary700,
-                      ),
-                    )
+                  ? const CardSkeletonLoader(itemCount: 5)
                   : _getFilteredConversations().isEmpty
-                      ? Center(
-                          child: Text(
-                            'Nenhuma conversa encontrada',
-                            style: AppTypography.contentRegular.copyWith(
-                              color: AppColorsNeutral.neutral500,
-                            ),
-                          ),
+                      ? EmptyState(
+                          icon: Icons.chat_bubble_outline,
+                          title: _searchQuery.isEmpty
+                              ? 'Nenhuma conversa ainda'
+                              : 'Nenhum resultado',
+                          subtitle: _searchQuery.isEmpty
+                              ? 'Suas conversas aparecerão aqui depois que você iniciar um chat'
+                              : 'Não encontramos nenhuma conversa para "${_searchQuery}"',
                         )
                       : RefreshIndicator(
                           onRefresh: _loadConversations,
@@ -267,28 +319,11 @@ class _ChatListPageState extends State<ChatListPage> {
                               final conversationId = conversation['id'] as String;
                               final otherParticipant = conversation['other_participant'] as Map<String, dynamic>?;
                               
-                              return ChatListTile(
-                                initials: conversation['other_initials'] as String? ?? 'U',
-                                name: conversation['other_name'] as String? ?? 'Usuário',
-                                lastMessage: conversation['last_message'] as String? ?? 'Sem mensagens',
-                                time: _formatTime(conversation['last_message_time'] as String?),
-                                unreadCount: conversation['unread_count'] as int? ?? 0,
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ChatDetailPage(
-                                        conversationId: conversationId,
-                                        otherParticipantId: otherParticipant?['id'] as String?,
-                                        name: conversation['other_name'] as String? ?? 'Usuário',
-                                        initials: conversation['other_initials'] as String? ?? 'U',
-                                      ),
-                                    ),
-                                  ).then((_) {
-                                    // Recarregar ao voltar para atualizar contador
-                                    _loadConversations();
-                                  });
-                                },
+                              return _buildAnimatedChatTile(
+                                conversation: conversation,
+                                conversationId: conversationId,
+                                otherParticipant: otherParticipant,
+                                index: index,
                               );
                             },
                           ),

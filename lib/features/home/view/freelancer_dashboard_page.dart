@@ -1,4 +1,5 @@
 // lib/features/home/view/freelancer_dashboard_page.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:latlong2/latlong.dart';
@@ -9,6 +10,7 @@ import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/core/utils/distance_calculator.dart' as distance_util;
 import 'package:trabalheja/core/widgets/map_with_markers.dart';
+import 'package:trabalheja/core/widgets/empty_state.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/service_request/view/service_details_page.dart';
 
@@ -22,6 +24,7 @@ class FreelancerDashboardPage extends StatefulWidget {
 class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
   final _supabase = Supabase.instance.client;
   final _searchController = TextEditingController();
+  Timer? _debounce;
   
   bool _isLoading = true;
   List<Map<String, dynamic>> _serviceRequests = [];
@@ -37,13 +40,24 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
   void initState() {
     super.initState();
     _loadDashboardData();
-    _searchController.addListener(_filterServices);
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    // Cancelar timer anterior se existir
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    
+    // Criar novo timer com delay de 500ms
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _filterServices();
+    });
   }
 
   Future<void> _loadDashboardData() async {
@@ -384,21 +398,19 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                           
                           // Lista de clientes
                           if (_filteredRequests.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(AppSpacing.spacing32),
-                              child: Center(
-                                child: Text(
-                                  'Nenhum bico próximo encontrado',
-                                  style: AppTypography.contentRegular.copyWith(
-                                    color: AppColorsNeutral.neutral500,
-                                  ),
-                                ),
-                              ),
+                            EmptyState(
+                              icon: Icons.work_outline,
+                              title: 'Nenhum bico encontrado',
+                              subtitle: _searchController.text.isEmpty
+                                  ? 'Não há solicitações próximas no momento. Tente aumentar seu raio de atuação.'
+                                  : 'Nenhum resultado para "${_searchController.text}"',
                             )
                           else
-                            ..._filteredRequests.map((request) => 
-                              _buildClientCard(request)
-                            ),
+                            ..._filteredRequests.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final request = entry.value;
+                              return _buildAnimatedClientCard(request, index);
+                            }),
                         ],
                       ),
                     ),
@@ -515,6 +527,24 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
     );
   }
 
+  Widget _buildAnimatedClientCard(Map<String, dynamic> request, int index) {
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 300 + (index * 50)),
+      tween: Tween(begin: 0.0, end: 1.0),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 10 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: child,
+          ),
+        );
+      },
+      child: _buildClientCard(request),
+    );
+  }
+
   Widget _buildClientCard(Map<String, dynamic> request) {
     final client = request['profiles'] as Map<String, dynamic>?;
     final clientName = client?['full_name'] as String? ?? 'Cliente';
@@ -526,7 +556,9 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
           _selectedRequest = request;
         });
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         margin: const EdgeInsets.only(bottom: AppSpacing.spacing12),
         padding: const EdgeInsets.all(AppSpacing.spacing16),
         decoration: BoxDecoration(
@@ -538,17 +570,31 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
             color: isSelected 
                 ? AppColorsPrimary.primary700 
                 : AppColorsNeutral.neutral200,
+            width: isSelected ? 2 : 1,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColorsPrimary.primary700.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 24,
-              backgroundColor: AppColorsNeutral.neutral200,
+              backgroundColor: isSelected
+                  ? AppColorsPrimary.primary100
+                  : AppColorsNeutral.neutral200,
               child: Text(
                 clientName.isNotEmpty ? clientName[0].toUpperCase() : 'C',
                 style: AppTypography.heading4.copyWith(
-                  color: AppColorsNeutral.neutral600,
+                  color: isSelected
+                      ? AppColorsPrimary.primary700
+                      : AppColorsNeutral.neutral600,
                 ),
               ),
             ),
@@ -561,6 +607,12 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                 ),
               ),
             ),
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                color: AppColorsPrimary.primary700,
+                size: 20,
+              ),
           ],
         ),
       ),

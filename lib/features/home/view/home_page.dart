@@ -5,6 +5,7 @@ import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/core/widgets/skeleton_loader.dart';
 import 'package:trabalheja/features/proposals/view/proposals_page.dart';
 import 'package:trabalheja/features/review/view/review_service_page.dart';
 import 'package:trabalheja/features/service_request/view/request_service_page.dart';
@@ -84,10 +85,12 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: AppColorsPrimary.primary50,
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? _buildLoadingState()
             : RefreshIndicator(
                 onRefresh: _loadProfileData,
+                color: AppColorsPrimary.primary700,
                 child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(AppSpacing.spacing24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,11 +99,12 @@ class _HomePageState extends State<HomePage> {
                       _buildProfileHeader(),
                       const SizedBox(height: AppSpacing.spacing32),
                       
-                      _buildDashboardItem(
+                      _buildAnimatedDashboardItem(
                         context: context,
-                        iconPath: 'assets/icons/freelancer.svg', // Crie este ícone
+                        iconPath: 'assets/icons/freelancer.svg',
                         title: 'Solicitar freelancer',
                         subtitle: 'Precisa de um serviço? Solicite um freelancer agora e receba propostas',
+                        delay: 0,
                         onTap: () {
                           Navigator.push(
                             context,
@@ -110,31 +114,31 @@ class _HomePageState extends State<HomePage> {
                       ),
                       
                       const SizedBox(height: AppSpacing.spacing16),
-                      _buildDashboardItem(
+                      _buildAnimatedDashboardItem(
                         context: context,
-                        iconPath: 'assets/icons/document.svg', // Reutilizar ícone
+                        iconPath: 'assets/icons/document.svg',
                         title: 'Propostas recebidas',
                         subtitle: 'Acompanhe as propostas enviadas pelos freelancers',
+                        delay: 100,
                         onTap: () {
-                          // TODO: Navegar para a tela de Propostas Recebidas
-                          // Se ProposalsPage estiver no MainAppShell, talvez mudar o índice
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const ProposalsPage()), // Assumindo que ProposalsPage lida com a lógica de Cliente
+                            MaterialPageRoute(builder: (context) => const ProposalsPage()),
                           );
                         },
                       ),
                       
                       const SizedBox(height: AppSpacing.spacing16),
-                      _buildDashboardItem(
+                      _buildAnimatedDashboardItem(
                         context: context,
-                        iconPath: 'assets/icons/star.svg', // Crie este ícone
+                        iconPath: 'assets/icons/star.svg',
                         title: 'Avaliar serviços',
                         subtitle: 'Avalie serviços realizados pelos freelancers',
+                        delay: 200,
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const ReviewServicePage()), // Navega para a tela de avaliação
+                            MaterialPageRoute(builder: (context) => const ReviewServicePage()),
                           );
                         },
                       ),
@@ -142,6 +146,59 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.spacing24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: AppSpacing.spacing16),
+          const ProfileHeaderSkeleton(),
+          const SizedBox(height: AppSpacing.spacing32),
+          
+          // Skeleton cards
+          ...List.generate(3, (index) {
+            return Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.spacing16),
+                  decoration: BoxDecoration(
+                    color: AppColorsNeutral.neutral0,
+                    borderRadius: AppRadius.radius12,
+                    border: Border.all(color: AppColorsNeutral.neutral100),
+                  ),
+                  child: Row(
+                    children: [
+                      const SkeletonLoader.circular(size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonLoader.rectangular(
+                              width: double.infinity,
+                              height: 18,
+                            ),
+                            const SizedBox(height: 8),
+                            SkeletonLoader.rectangular(
+                              width: MediaQuery.of(context).size.width * 0.7,
+                              height: 14,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.spacing16),
+              ],
+            );
+          }),
+        ],
       ),
     );
   }
@@ -194,6 +251,37 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildAnimatedDashboardItem({
+    required BuildContext context,
+    required String iconPath,
+    required String title,
+    required String subtitle,
+    required int delay,
+    required VoidCallback onTap,
+  }) {
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 500 + delay),
+      tween: Tween(begin: 0.0, end: 1.0),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: child,
+          ),
+        );
+      },
+      child: _buildDashboardItem(
+        context: context,
+        iconPath: iconPath,
+        title: title,
+        subtitle: subtitle,
+        onTap: onTap,
+      ),
     );
   }
 
