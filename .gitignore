@@ -33,7 +33,11 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Environment variables (SECRETS - NEVER COMMIT!)
 .env
+.env.local
+.env.*.local
+*.env
 
 # Symbolication related
 app.*.symbols
