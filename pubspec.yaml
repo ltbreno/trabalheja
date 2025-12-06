@@ -29,6 +29,7 @@ dependencies:
   encrypt: ^5.0.1
   shared_preferences: ^2.2.3
   qr_flutter: ^4.1.0
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:
@@ -45,6 +46,7 @@ flutter:
     - assets/fonts/
     - assets/icons/
     - assets/images/
+    - .env
 
   fonts:
     - family: SpaceGrotesk
