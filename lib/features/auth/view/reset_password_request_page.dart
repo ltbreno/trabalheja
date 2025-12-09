@@ -20,6 +20,7 @@ class _ResetPasswordRequestPageState extends State<ResetPasswordRequestPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  String? _errorMessage; // Variável para a mensagem de erro centralizada
 
   @override
   void dispose() {
@@ -27,8 +28,23 @@ class _ResetPasswordRequestPageState extends State<ResetPasswordRequestPage> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
+  }
+
+  void _clearError() {
+    setState(() {
+      _errorMessage = null;
+    });
+  }
+
   Future<void> _handleResetPassword() async {
+    _clearError(); // Limpa erros anteriores
+
     if (!(_formKey.currentState?.validate() ?? false)) {
+      _showError('Por favor, digite um e-mail válido.');
       return;
     }
 
@@ -68,21 +84,11 @@ class _ResetPasswordRequestPageState extends State<ResetPasswordRequestPage> {
         errorMessage = e.message.isNotEmpty ? e.message : errorMessage;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(errorMessage);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao solicitar redefinição de senha: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Erro ao solicitar redefinição de senha: ${e.toString()}');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -129,22 +135,33 @@ class _ResetPasswordRequestPageState extends State<ResetPasswordRequestPage> {
               children: [
                 const SizedBox(height: AppSpacing.spacing16),
 
-                // Título e descrição
-                  Text(
-                    'Esqueceu sua senha?',
-                    style: AppTypography.heading3.copyWith(
-                      color: AppColorsNeutral.neutral900,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.spacing8),
-                  Text(
-                    'Digite seu email e enviaremos um código de verificação (OTP) para redefinir sua senha.',
-                    style: AppTypography.contentRegular.copyWith(
-                      color: AppColorsNeutral.neutral600,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.spacing32),
-
+                                  // Título e descrição
+                                  Text(
+                                    'Esqueceu sua senha?',
+                                    style: AppTypography.heading3.copyWith(
+                                      color: AppColorsNeutral.neutral900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.spacing8),
+                                  Text(
+                                    'Digite seu email e enviaremos um código de verificação (OTP) para redefinir sua senha.',
+                                    style: AppTypography.contentRegular.copyWith(
+                                      color: AppColorsNeutral.neutral600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.spacing16),
+                                  // Mensagem de erro centralizada
+                                  if (_errorMessage != null) ...[
+                                    Text(
+                                      _errorMessage!,
+                                      textAlign: TextAlign.center,
+                                      style: AppTypography.contentMedium.copyWith(
+                                        color: AppColorsError.error500, // Cor de erro
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.spacing16), // Espaçamento após a mensagem de erro
+                                  ],
+                                  const SizedBox(height: AppSpacing.spacing32),
                   // Campo de E-mail
                   AppTextField(
                     label: 'Digite seu e-mail',

@@ -28,6 +28,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
+  String? _errorMessage; // Variável para a mensagem de erro centralizada
 
   // Máscara para telefone (ajuste conforme necessário para seu país)
   final _phoneMaskFormatter = MaskTextInputFormatter(
@@ -43,8 +44,23 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
+  }
+
+  void _clearError() {
+    setState(() {
+      _errorMessage = null;
+    });
+  }
+
   Future<void> _continue() async {
+    _clearError(); // Limpa erros anteriores
+
     if (!(_formKey.currentState?.validate() ?? false)) {
+      _showError('Por favor, preencha todos os campos corretamente.');
       return;
     }
 
@@ -84,12 +100,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
         );
       } else {
         // Erro ao criar conta
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erro ao criar conta. Tente novamente.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showError('Erro ao criar conta. Tente novamente.');
       }
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -104,21 +115,11 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
         errorMessage = e.message;
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(errorMessage);
     } catch (e) {
       if (!mounted) return;
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao criar conta: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Erro ao criar conta: ${e.toString()}');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -171,6 +172,18 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                     color: AppColorsNeutral.neutral600,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.spacing16),
+                // Mensagem de erro centralizada
+                if (_errorMessage != null) ...[
+                  Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.contentMedium.copyWith(
+                      color: AppColorsError.error500, // Cor de erro
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.spacing16), // Espaçamento após a mensagem de erro
+                ],
                 const SizedBox(height: AppSpacing.spacing32),
 
                 // Campo de Telefone com Máscara

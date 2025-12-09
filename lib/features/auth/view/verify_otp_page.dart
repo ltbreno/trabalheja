@@ -25,6 +25,8 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
+  bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
 
   @override
   void dispose() {
@@ -32,8 +34,25 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
     super.dispose();
   }
 
+  void _showFeedback(String message, {bool isError = false}) {
+    setState(() {
+      _feedbackMessage = message;
+      _isFeedbackError = isError;
+    });
+  }
+
+  void _clearFeedback() {
+    setState(() {
+      _feedbackMessage = null;
+      _isFeedbackError = false;
+    });
+  }
+
   Future<void> _verifyOtp() async {
+    _clearFeedback(); // Limpa feedback anterior
+
     if (!(_formKey.currentState?.validate() ?? false)) {
+      _showFeedback('Por favor, digite o código de verificação.', isError: true);
       return;
     }
 
@@ -74,21 +93,11 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
         errorMessage = e.message.isNotEmpty ? e.message : errorMessage;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback(errorMessage, isError: true);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao verificar código: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback('Erro ao verificar código: ${e.toString()}', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -97,6 +106,7 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
   }
 
   Future<void> _resendOtp() async {
+    _clearFeedback(); // Limpa feedback anterior
     setState(() => _isLoading = true);
 
     try {
@@ -109,21 +119,11 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Novo código enviado para seu email!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showFeedback('Novo código enviado para seu email!', isError: false);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao reenviar código: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback('Erro ao reenviar código: ${e.toString()}', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -184,6 +184,18 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
                     color: AppColorsNeutral.neutral600,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.spacing16),
+                // Mensagem de feedback centralizada
+                if (_feedbackMessage != null) ...[
+                  Text(
+                    _feedbackMessage!,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.contentMedium.copyWith(
+                      color: _isFeedbackError ? AppColorsError.error500 : AppColorsPrimary.primary800,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.spacing16),
+                ],
                 const SizedBox(height: AppSpacing.spacing32),
 
                 // Campo de OTP

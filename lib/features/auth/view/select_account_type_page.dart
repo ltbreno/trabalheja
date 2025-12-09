@@ -31,13 +31,25 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
   AccountType _selectedAccountType = AccountType.none; // Estado para seleção
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  String? _errorMessage; // Variável para a mensagem de erro centralizada
+
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
+  }
+
+  void _clearError() {
+    setState(() {
+      _errorMessage = null;
+    });
+  }
 
   Future<void> _createAccount() async {
+    _clearError(); // Limpa erros anteriores
+
     if (_selectedAccountType == AccountType.none) {
-      // Mostrar mensagem pedindo para selecionar um tipo
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecione um tipo de conta.')),
-      );
+      _showError('Por favor, selecione um tipo de conta.');
       return;
     }
 
@@ -166,13 +178,7 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
         errorMessage = e.toString();
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      _showError(errorMessage);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -208,15 +214,26 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: AppSpacing.spacing16),
-              Text(
-                'Ótimo! Agora selecione\nseu tipo de conta', // Título
-                style: AppTypography.heading1.copyWith(
-                  color: AppColorsNeutral.neutral900,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.spacing32),
-
+                              const SizedBox(height: AppSpacing.spacing16),
+                              Text(
+                                'Ótimo! Agora selecione\nseu tipo de conta', // Título
+                                style: AppTypography.heading1.copyWith(
+                                  color: AppColorsNeutral.neutral900,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.spacing16),
+                              // Mensagem de erro centralizada
+                              if (_errorMessage != null) ...[
+                                Text(
+                                  _errorMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: AppTypography.contentMedium.copyWith(
+                                    color: AppColorsError.error500, // Cor de erro
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.spacing16), // Espaçamento após a mensagem de erro
+                              ],
+                              const SizedBox(height: AppSpacing.spacing32),
               // Card Cliente
               _buildAccountTypeCard(
                 iconPath: 'assets/icons/person_outline.png', // Use o nome correto do seu ícone

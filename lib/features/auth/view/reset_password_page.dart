@@ -28,6 +28,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
+  bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
 
   @override
   void dispose() {
@@ -36,8 +38,25 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     super.dispose();
   }
 
+  void _showFeedback(String message, {bool isError = false}) {
+    setState(() {
+      _feedbackMessage = message;
+      _isFeedbackError = isError;
+    });
+  }
+
+  void _clearFeedback() {
+    setState(() {
+      _feedbackMessage = null;
+      _isFeedbackError = false;
+    });
+  }
+
   Future<void> _handleResetPassword() async {
+    _clearFeedback(); // Limpa feedback anterior
+
     if (!(_formKey.currentState?.validate() ?? false)) {
+      _showFeedback('Por favor, preencha todos os campos corretamente.', isError: true);
       return;
     }
 
@@ -54,12 +73,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       if (!mounted) return;
 
       // Senha atualizada com sucesso - fazer login automático
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Senha redefinida com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showFeedback('Senha redefinida com sucesso!', isError: false);
 
       // Navegar para a tela principal
       Navigator.of(context).pushAndRemoveUntil(
@@ -80,21 +94,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         errorMessage = e.message.isNotEmpty ? e.message : errorMessage;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback(errorMessage, isError: true);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao redefinir senha: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback('Erro ao redefinir senha: ${e.toString()}', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -155,6 +159,18 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     color: AppColorsNeutral.neutral600,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.spacing16),
+                // Mensagem de feedback centralizada
+                if (_feedbackMessage != null) ...[
+                  Text(
+                    _feedbackMessage!,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.contentMedium.copyWith(
+                      color: _isFeedbackError ? AppColorsError.error500 : AppColorsPrimary.primary800,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.spacing16),
+                ],
                 const SizedBox(height: AppSpacing.spacing32),
 
                 // Campo de Nova Senha
