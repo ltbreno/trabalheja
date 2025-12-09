@@ -29,7 +29,9 @@ class LoginPage extends StatelessWidget {
             ),
           ),
           onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const WelcomePage()));
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context); // Ação de voltar padrão
+            }
           },
         ),
         title: Text(

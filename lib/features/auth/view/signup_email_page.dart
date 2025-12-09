@@ -2,6 +2,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
@@ -48,8 +49,14 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
         backgroundColor: AppColorsNeutral.neutral0,
         elevation: 0,
         leading: IconButton(
-          // Ícone SVG não está no design, usando Icon padrão
-          icon: Icon(Icons.arrow_back, color: AppColorsNeutral.neutral900),
+          icon: SvgPicture.asset(
+            'assets/icons/arrow_back.svg',
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              AppColorsNeutral.neutral900,
+              BlendMode.srcIn,
+            ),
+          ),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -112,9 +119,6 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
                   alignment: Alignment.center,
                   child: TextButton(
                     onPressed: () {
-                      // TODO: Navegar de volta para a tela de Login (EmailLoginPage)
-                      // Pode precisar usar Navigator.popUntil ou um sistema de rotas
-                      print('Já tenho conta');
                       if (Navigator.canPop(context)) {
                          Navigator.pop(context); // Volta para a tela anterior (provavelmente LoginPage)
                       }
@@ -146,8 +150,7 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
                           style: const TextStyle(decoration: TextDecoration.underline),
                           recognizer: TapGestureRecognizer()
                             ..onTap = () {
-                              // TODO: Abrir link dos Termos
-                              print('Abrir Termos');
+                              // Ação para abrir Termos (manter vazio ou implementar se houver URL)
                             },
                         ),
                         const TextSpan(text: ' e '),
@@ -156,8 +159,7 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
                           style: const TextStyle(decoration: TextDecoration.underline),
                            recognizer: TapGestureRecognizer()
                             ..onTap = () {
-                              // TODO: Abrir link da Política
-                              print('Abrir Política');
+                              // Ação para abrir Política (manter vazio ou implementar se houver URL)
                             },
                         ),
                         const TextSpan(text: '.'),

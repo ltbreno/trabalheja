@@ -28,6 +28,7 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  String? _errorMessage; // Variável para a mensagem de erro centralizada
 
   @override
   void dispose() {
@@ -35,8 +36,23 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
+  }
+
+  void _clearError() {
+    setState(() {
+      _errorMessage = null;
+    });
+  }
+
   Future<void> _continue() async {
+    _clearError(); // Limpa erros anteriores
+
     if (!(_formKey.currentState?.validate() ?? false)) {
+      _showError('Por favor, preencha seu nome completo.');
       return;
     }
 
@@ -80,12 +96,7 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao salvar nome: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Erro ao salvar nome: ${e.toString()}');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -131,6 +142,18 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.spacing32), // Mais espaço
+
+                // Mensagem de erro centralizada
+                if (_errorMessage != null) ...[
+                  Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.contentMedium.copyWith(
+                      color: AppColorsError.error500, // Cor de erro
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.spacing16), // Espaçamento após a mensagem de erro
+                ],
 
                 // Campo Nome Completo
                 AppTextField( // Usando AppTextField em vez de TextField

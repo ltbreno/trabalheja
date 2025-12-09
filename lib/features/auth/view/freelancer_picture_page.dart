@@ -34,9 +34,26 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
   XFile? _imageFile; // Para armazenar a imagem selecionada
   final ImagePicker _picker = ImagePicker();
   final _supabase = Supabase.instance.client;
+  String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
+  bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
+
+  void _showFeedback(String message, {bool isError = false}) {
+    setState(() {
+      _feedbackMessage = message;
+      _isFeedbackError = isError;
+    });
+  }
+
+  void _clearFeedback() {
+    setState(() {
+      _feedbackMessage = null;
+      _isFeedbackError = false;
+    });
+  }
 
   // Função para selecionar imagem da galeria
   Future<void> _pickImage() async {
+    _clearFeedback(); // Limpa feedback anterior
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -50,12 +67,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
         
         if (sizeInMB > maxSizeMB) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('A foto excede o tamanho máximo de ${maxSizeMB}MB.'),
-                backgroundColor: AppColorsError.error600,
-              ),
-            );
+            _showFeedback('A foto excede o tamanho máximo de ${maxSizeMB}MB.', isError: true);
           }
           return;
         }
@@ -66,12 +78,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao selecionar imagem: ${e.toString()}'),
-            backgroundColor: AppColorsError.error600,
-          ),
-        );
+        _showFeedback('Erro ao selecionar imagem: ${e.toString()}', isError: true);
       }
     }
   }
@@ -79,6 +86,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
   Future<void> _finalizeRegistration() async {
     // Foto agora é opcional - não precisa validar
     
+    _clearFeedback(); // Limpa feedback anterior
     setState(() => _isLoading = true);
 
     try {
@@ -294,9 +302,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
         (route) => false,
       );
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cadastro finalizado com sucesso!')),
-      );
+      _showFeedback('Cadastro finalizado com sucesso!', isError: false);
     } catch (e) {
       if (!mounted) return;
       
@@ -332,13 +338,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
         });
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      _showFeedback(errorMessage, isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -421,6 +421,18 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
                 'Arquivos em PNG ou JPG (Tamanho máximo 10Mb)',
                 style: AppTypography.footnoteRegular.copyWith(color: AppColorsNeutral.neutral500),
               ),
+              const SizedBox(height: AppSpacing.spacing16),
+              // Mensagem de feedback centralizada
+              if (_feedbackMessage != null) ...[
+                Text(
+                  _feedbackMessage!,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.contentMedium.copyWith(
+                    color: _isFeedbackError ? AppColorsError.error500 : AppColorsPrimary.primary800,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.spacing16),
+              ],
 
               const SizedBox(height: AppSpacing.spacing48), // Mais espaço
 

@@ -89,7 +89,7 @@ class WelcomePage extends StatelessWidget {
         ),
       ),
       onPressed: () {
-        // TODO: Navegar para tela de Cadastro
+        // Navegar para tela de Cadastro
         print('Criar conta');
         Navigator.push(context, MaterialPageRoute(builder: (context) => const SignUpEmailPage()));
       },
