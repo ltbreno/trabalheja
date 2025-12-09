@@ -34,6 +34,8 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
   bool _isLoadingLocation = false;
   LatLng? _currentCenter; // centro dinâmico quando localização disponível
   final AppMapController _mapController = AppMapController();
+  String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
+  bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
 
   final List<DropdownItem<String>> _radiusOptions = [
     DropdownItem(value: '5km', label: 'Até 5km'),
@@ -67,7 +69,22 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
     _askAndLoadCurrentLocation();
   }
 
+  void _showFeedback(String message, {bool isError = false}) {
+    setState(() {
+      _feedbackMessage = message;
+      _isFeedbackError = isError;
+    });
+  }
+
+  void _clearFeedback() {
+    setState(() {
+      _feedbackMessage = null;
+      _isFeedbackError = false;
+    });
+  }
+
   Future<void> _askAndLoadCurrentLocation() async {
+    _clearFeedback(); // Limpa feedback anterior
     try {
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -79,6 +96,7 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
         setState(() {
           _currentCenter = null;
         });
+        _showFeedback('Permissão de localização negada. O mapa usará um local padrão.', isError: false);
         return;
       }
 
@@ -98,18 +116,18 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
       await _reverseGeocodeAndPersist(position.latitude, position.longitude);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Localização atual detectada.')),
-      );
+      _showFeedback('Localização atual detectada.', isError: false);
     } catch (e) {
       // Silencioso: usa fallback
       setState(() {
         _currentCenter = null;
       });
+      _showFeedback('Não foi possível detectar sua localização automaticamente. Por favor, ajuste o mapa manualmente ou tente novamente.', isError: true);
     }
   }
 
   Future<void> _centerOnCurrentLocation() async {
+    _clearFeedback(); // Limpa feedback anterior
     setState(() => _isLoadingLocation = true);
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -119,11 +137,7 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
       if (permission == LocationPermission.deniedForever ||
           permission == LocationPermission.denied) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permissão de localização negada. Habilite nas configurações do dispositivo.'),
-          ),
-        );
+        _showFeedback('Permissão de localização negada. Habilite nas configurações do dispositivo.', isError: true);
         return;
       }
 
@@ -140,14 +154,10 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
       _mapController.moveToLocation(newCenter);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mapa centralizado na sua localização.')),
-      );
+      _showFeedback('Mapa centralizado na sua localização.', isError: false);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao obter localização: ${e.toString()}')),
-      );
+      _showFeedback('Erro ao obter localização: ${e.toString()}', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoadingLocation = false);
@@ -179,10 +189,9 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
   }
 
   Future<void> _continue() async {
+    _clearFeedback(); // Limpa feedback anterior
     if (_selectedRadius == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecione um raio de atuação.')),
-      );
+      _showFeedback('Por favor, selecione um raio de atuação.', isError: true);
       return;
     }
 
@@ -267,12 +276,7 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao salvar raio de atuação: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback('Erro ao salvar raio de atuação: ${e.toString()}', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -325,6 +329,18 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
                       color: AppColorsNeutral.neutral600,
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.spacing16),
+                  // Mensagem de feedback centralizada
+                  if (_feedbackMessage != null) ...[
+                    Text(
+                      _feedbackMessage!,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.contentMedium.copyWith(
+                        color: _isFeedbackError ? AppColorsError.error500 : AppColorsPrimary.primary800,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.spacing16),
+                  ],
                   const SizedBox(height: AppSpacing.spacing24),
                   AppDropdownField<String>(
                     label: 'Selecione o raio de atuação',

@@ -27,6 +27,22 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
   List<XFile> _selectedPhotos = [];
   List<XFile> _selectedVideos = [];
   bool _isLoading = false;
+  String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
+  bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
+
+  void _showFeedback(String message, {bool isError = false}) {
+    setState(() {
+      _feedbackMessage = message;
+      _isFeedbackError = isError;
+    });
+  }
+
+  void _clearFeedback() {
+    setState(() {
+      _feedbackMessage = null;
+      _isFeedbackError = false;
+    });
+  }
 
   // Limites
   static const int maxPhotos = 3;
@@ -37,6 +53,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
   static const int maxVideoSizeMB = 150;
 
   Future<void> _selectPhotos() async {
+    _clearFeedback(); // Limpa feedback anterior
     try {
       final List<XFile> photos = await _picker.pickMultiImage();
       
@@ -45,7 +62,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
       // Verificar quantas fotos podem ser adicionadas
       final int remainingSlots = maxPhotos - _selectedPhotos.length;
       if (remainingSlots <= 0) {
-        _showError('Você já selecionou o máximo de $maxPhotos fotos.');
+        _showFeedback('Você já selecionou o máximo de $maxPhotos fotos.', isError: true);
         return;
       }
 
@@ -57,7 +74,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
         final file = File(photo.path);
         final sizeInMB = await file.length() / (1024 * 1024);
         if (sizeInMB > maxPhotoSizeMB) {
-          _showError('A foto "${photo.name}" excede o tamanho máximo de ${maxPhotoSizeMB}MB.');
+          _showFeedback('A foto "${photo.name}" excede o tamanho máximo de ${maxPhotoSizeMB}MB.', isError: true);
           return;
         }
       }
@@ -67,14 +84,15 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
       });
 
       if (photos.length > remainingSlots) {
-        _showInfo('Apenas ${remainingSlots} foto(s) foram adicionadas (máximo de $maxPhotos).');
+        _showFeedback('Apenas ${remainingSlots} foto(s) foram adicionadas (máximo de $maxPhotos).', isError: false);
       }
     } catch (e) {
-      _showError('Erro ao selecionar fotos: ${e.toString()}');
+      _showFeedback('Erro ao selecionar fotos: ${e.toString()}', isError: true);
     }
   }
 
   Future<void> _selectVideos() async {
+    _clearFeedback(); // Limpa feedback anterior
     try {
       final XFile? video = await _picker.pickVideo(
         source: ImageSource.gallery,
@@ -84,7 +102,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
 
       // Verificar limite
       if (_selectedVideos.length >= maxVideos) {
-        _showError('Você já selecionou o máximo de $maxVideos vídeos.');
+        _showFeedback('Você já selecionou o máximo de $maxVideos vídeos.', isError: true);
         return;
       }
 
@@ -92,7 +110,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
       final file = File(video.path);
       final sizeInMB = await file.length() / (1024 * 1024);
       if (sizeInMB > maxVideoSizeMB) {
-        _showError('O vídeo "${video.name}" excede o tamanho máximo de ${maxVideoSizeMB}MB.');
+        _showFeedback('O vídeo "${video.name}" excede o tamanho máximo de ${maxVideoSizeMB}MB.', isError: true);
         return;
       }
 
@@ -100,7 +118,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
         _selectedVideos.add(video);
       });
     } catch (e) {
-      _showError('Erro ao selecionar vídeo: ${e.toString()}');
+      _showFeedback('Erro ao selecionar vídeo: ${e.toString()}', isError: true);
     }
   }
 
@@ -117,18 +135,23 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
   }
 
   bool _validateFiles() {
+    _clearFeedback(); // Limpa feedback anterior
+
     if (_selectedPhotos.length < minPhotos) {
-      _showError('Você precisa selecionar pelo menos $minPhotos fotos.');
+      _showFeedback('Você precisa selecionar pelo menos $minPhotos fotos.', isError: true);
       return false;
     }
-    if (_selectedVideos.length < minVideos) {
-      _showError('Você precisa selecionar pelo menos $minVideos vídeos.');
-      return false;
-    }
+    // A validação de vídeos pode ser removida se minVideos for 0 e eles forem opcionais
+    // if (_selectedVideos.length < minVideos) {
+    //   _showFeedback('Você precisa selecionar pelo menos $minVideos vídeos.', isError: true);
+    //   return false;
+    // }
     return true;
   }
 
   Future<void> _continue() async {
+    _clearFeedback(); // Limpa feedback anterior
+
     if (!_validateFiles()) return;
 
     setState(() => _isLoading = true);
@@ -229,7 +252,7 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      _showError('Erro ao fazer upload: ${e.toString()}');
+      _showFeedback('Erro ao fazer upload: ${e.toString()}', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -248,26 +271,6 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
       default:
         return 'video/mp4';
     }
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColorsError.error600,
-        duration: const Duration(seconds: 4),
-      ),
-    );
-  }
-
-  void _showInfo(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColorsNeutral.neutral600,
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
   @override
@@ -312,6 +315,18 @@ class _FreelancerPortfolioPageState extends State<FreelancerPortfolioPage> {
                   color: AppColorsNeutral.neutral600,
                 ),
               ),
+              const SizedBox(height: AppSpacing.spacing16),
+              // Mensagem de feedback centralizada
+              if (_feedbackMessage != null) ...[
+                Text(
+                  _feedbackMessage!,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.contentMedium.copyWith(
+                    color: _isFeedbackError ? AppColorsError.error500 : AppColorsPrimary.primary800,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.spacing16),
+              ],
               const SizedBox(height: AppSpacing.spacing32),
 
               // Seção Fotos

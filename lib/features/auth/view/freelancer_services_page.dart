@@ -28,6 +28,7 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  String? _errorMessage; // Variável para a mensagem de erro centralizada
 
   @override
   void dispose() {
@@ -36,6 +37,17 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
+  }
+
+  void _clearError() {
+    setState(() {
+      _errorMessage = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +80,17 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: AppSpacing.spacing16),
+                // Mensagem de erro centralizada
+                if (_errorMessage != null) ...[
+                  Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.contentMedium.copyWith(
+                      color: AppColorsError.error500, // Cor de erro
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.spacing16), // Espaçamento após a mensagem de erro
+                ],
                 // Campo Nome Completo
                 AppTextField(
                   label: 'Nome completo',
@@ -109,7 +132,9 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                         type: AppButtonType.primary, 
                         text: 'Continuar',
                         onPressed: () async {
+                          _clearError(); // Limpa erros anteriores
                           if (!(_formKey.currentState?.validate() ?? false)) {
+                            _showError('Por favor, preencha todos os campos obrigatórios.');
                             return;
                           }
 
@@ -186,12 +211,7 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                             );
                           } catch (e) {
                             if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Erro ao salvar dados: ${e.toString()}'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
+                            _showError('Erro ao salvar dados: ${e.toString()}');
                           } finally {
                             if (mounted) {
                               setState(() => _isLoading = false);

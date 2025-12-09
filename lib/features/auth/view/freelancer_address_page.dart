@@ -34,6 +34,8 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
+  bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
 
   // Máscara para CEP
   final _cepMaskFormatter = MaskTextInputFormatter(
@@ -81,8 +83,25 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
     super.dispose();
   }
 
+  void _showFeedback(String message, {bool isError = false}) {
+    setState(() {
+      _feedbackMessage = message;
+      _isFeedbackError = isError;
+    });
+  }
+
+  void _clearFeedback() {
+    setState(() {
+      _feedbackMessage = null;
+      _isFeedbackError = false;
+    });
+  }
+
   Future<void> _continue() async {
+    _clearFeedback(); // Limpa feedback anterior
+
     if (!(_formKey.currentState?.validate() ?? false)) {
+      _showFeedback('Por favor, preencha todos os campos obrigatórios.', isError: true);
       return;
     }
 
@@ -186,12 +205,7 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao salvar endereço: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback('Erro ao salvar endereço: ${e.toString()}', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -245,6 +259,18 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.spacing32),
+
+                // Mensagem de feedback centralizada
+                if (_feedbackMessage != null) ...[
+                  Text(
+                    _feedbackMessage!,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.contentMedium.copyWith(
+                      color: _isFeedbackError ? AppColorsError.error500 : AppColorsPrimary.primary800,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.spacing16),
+                ],
 
                 // Campo CEP
                 AppTextField(
