@@ -81,7 +81,7 @@ class _CardFormPageState extends State<CardFormPage> {
     });
   }
 
-  Future<void> _generateCardToken() async {
+  Future<void> _submitCard() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -93,73 +93,58 @@ class _CardFormPageState extends State<CardFormPage> {
       final cardNumber = _cardNumberController.text.replaceAll(RegExp(r'[^0-9]'), '');
       final cardHolderName = _cardHolderNameController.text.trim();
 
-      // Converter data de MM/YY para MMYY
+      // Converter data de MM/YY para MM e YY separados
       final expirationParts = _cardExpirationController.text.split('/');
-      final cardExpirationDate = expirationParts.length == 2
-          ? '${expirationParts[0]}${expirationParts[1]}'
-          : _cardExpirationController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      String expMonth;
+      String expYear;
+      
+      if (expirationParts.length == 2) {
+        expMonth = expirationParts[0];
+        expYear = expirationParts[1];
+      } else {
+        // Fallback básico
+        final raw = _cardExpirationController.text.replaceAll(RegExp(r'[^0-9]'), '');
+        if (raw.length >= 4) {
+          expMonth = raw.substring(0, 2);
+          expYear = raw.substring(2, 4);
+        } else {
+          throw Exception('Data de validade inválida');
+        }
+      }
 
       final cardCvv = _cardCvvController.text.replaceAll(RegExp(r'[^0-9]'), '');
-
-      // Criar card_token
-      print('🔑 Criando card_token...');
-      final tokenResponse = await _pagarmeService.createCardToken(
-        cardNumber: cardNumber,
-        cardHolderName: cardHolderName,
-        cardExpirationDate: cardExpirationDate,
-        cardCvv: cardCvv,
-        cardHolderDocument: null, // Será usado valor padrão
-      );
-
-      if (!tokenResponse.success) {
-        throw Exception(tokenResponse.error ?? 'Erro ao criar token do cartão');
+      // Converter ano para 4 dígitos (int)
+      // Mês deve ser string com 2 dígitos (ex: "01")
+      int expYearInt = int.parse(expYear);
+      String expMonthStr = expMonth.padLeft(2, '0');
+      
+      // Se ano for 2 dígitos (ex: 30), converter para 2030
+      if (expYearInt < 100) {
+        expYearInt += 2000;
       }
+
+      final cardData = {
+        'number': cardNumber,
+        'holder_name': cardHolderName,
+        'exp_month': expMonthStr,
+        'exp_year': expYearInt,
+        'cvv': cardCvv,
+        // removendo campos extras que podem atrapalhar se o backend for estrito
+        // 'brand': _cardBrand ?? 'Unknown', 
+        // 'label': _cardBrand ?? 'Credits',
+      };
 
       if (!mounted) return;
 
-      // Callback ou retornar resultado
-      if (widget.onCardHashGenerated != null) {
-        widget.onCardHashGenerated!(tokenResponse.cardToken!.id);
-      }
+      Navigator.pop(context, cardData);
 
-      Navigator.pop(context, tokenResponse.cardToken!.id);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cartão processado com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
-
-      // Log detalhado do erro para debug
-      print('❌ ERRO ao criar card_token:');
-      print('   Tipo: ${e.runtimeType}');
-      print('   Mensagem: ${e.toString()}');
-      print('   StackTrace: ${StackTrace.current}');
-
-      // Extrair mensagem de erro mais amigável
-      String errorMessage = 'Erro ao processar cartão.';
-      final errorStr = e.toString().toLowerCase();
-
-      if (errorStr.contains('api_key') || errorStr.contains('unauthorized') || errorStr.contains('401')) {
-        errorMessage = 'Erro de autenticação com o Pagar.me. Verifique as chaves de API.';
-      } else if (errorStr.contains('400') || errorStr.contains('bad request')) {
-        errorMessage = 'Dados do cartão inválidos. Verifique os dados informados.';
-      } else if (errorStr.contains('404') || errorStr.contains('not found')) {
-        errorMessage = 'Serviço temporariamente indisponível. Tente novamente.';
-      } else if (errorStr.contains('card') && errorStr.contains('invalid')) {
-        errorMessage = 'Dados do cartão inválidos. Verifique número, validade e CVV.';
-      } else {
-        errorMessage = 'Erro ao processar cartão: ${e.toString()}';
-      }
-
+      print('❌ Erro ao processar cartão: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(errorMessage),
+          content: Text('Erro ao processar dados do cartão: ${e.toString()}'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
         ),
       );
     } finally {
@@ -332,8 +317,8 @@ class _CardFormPageState extends State<CardFormPage> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : AppButton.primary(
-                        text: 'Processar Cartão',
-                        onPressed: _generateCardToken,
+                        text: 'Confirmar Cartão',
+                        onPressed: _submitCard,
                         minWidth: double.infinity,
                       ),
               ],

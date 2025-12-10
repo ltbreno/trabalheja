@@ -233,15 +233,23 @@ class PaymentService {
   /// [email] - Email do cliente
   /// [document] - CPF/CNPJ do cliente
   /// [type] - Tipo: 'individual' ou 'company'
-  /// [phoneNumbers] - Lista de telefones (opcional)
-  ///
-  /// Retorna os dados do customer criado incluindo o ID
+  /// [code] - ID do usuário no sistema (opcional)
+  /// [gender] - Gênero (opcional)
+  /// [birthdate] - Data de nascimento DD/MM/AAAA (opcional)
+  /// [address] - Dados de endereço (opcional)
+  /// [mobilePhone] - Telefone celular (DDD + número) (opcional)
+  /// [metadata] - Metadados adicionais (opcional)
   Future<Map<String, dynamic>> createCustomer({
     required String name,
     required String email,
     required String document,
     String type = 'individual',
-    List<String>? phoneNumbers,
+    String? code,
+    String? gender,
+    String? birthdate,
+    Map<String, String>? address,
+    Map<String, String>? mobilePhone,
+    Map<String, dynamic>? metadata,
   }) async {
     if (PagarmeConfig.useRestApi) {
       if (_restService == null) {
@@ -252,7 +260,12 @@ class PaymentService {
         email: email,
         document: document,
         type: type,
-        phoneNumbers: phoneNumbers,
+        code: code,
+        gender: gender,
+        birthdate: birthdate,
+        address: address,
+        mobilePhone: mobilePhone,
+        metadata: metadata,
       );
     }
 
@@ -314,6 +327,48 @@ class PaymentService {
     }
 
     throw Exception('Criação de transferência só é suportada via API REST Node.js');
+  }
+  /// Cria um cartão para um cliente
+  ///
+  /// [customerPagarmeId] - ID do cliente no Pagar.me
+  /// [cardData] - Pode ser o token (String) ou mapa com dados brutos do cartão
+  /// [billingAddress] - Endereço de cobrança (opcional)
+  ///
+  /// Retorna os dados do cartão criado
+  Future<Map<String, dynamic>> createCard({
+    required String customerPagarmeId,
+    required dynamic cardData,
+  }) async {
+    if (PagarmeConfig.useRestApi) {
+      if (_restService == null) {
+        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
+      }
+      return await _restService.createCard(
+        customerPagarmeId: customerPagarmeId,
+        cardData: cardData,
+      );
+    }
+
+    throw Exception('Criação de cartão só é suportada via API REST Node.js');
+  }
+  /// Lista os cartões de um cliente
+  ///
+  /// [customerPagarmeId] - ID do cliente no Pagar.me
+  ///
+  /// Retorna lista de cartões
+  Future<List<Map<String, dynamic>>> listCards({
+    required String customerPagarmeId,
+  }) async {
+    if (PagarmeConfig.useRestApi) {
+      if (_restService == null) {
+        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
+      }
+      return await _restService.listCards(
+        customerPagarmeId: customerPagarmeId,
+      );
+    }
+
+    throw Exception('Listagem de cartões só é suportada via API REST Node.js');
   }
 }
 
