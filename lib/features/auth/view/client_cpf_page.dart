@@ -1,38 +1,40 @@
-// lib/features/auth/view/complete_name_page.dart
+// lib/features/auth/view/client_cpf_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
-// Importe a próxima página de CPF (para clientes)
-import 'client_cpf_page.dart';
+import 'package:trabalheja/features/auth/view/client_birthdate_page.dart';
 
-class CompleteNamePage extends StatefulWidget {
+class ClientCpfPage extends StatefulWidget {
   final String email;
   final String phone;
+  final String fullName;
 
-  const CompleteNamePage({
+  const ClientCpfPage({
     super.key,
     required this.email,
     required this.phone,
+    required this.fullName,
   });
 
   @override
-  State<CompleteNamePage> createState() => _CompleteNamePageState();
+  State<ClientCpfPage> createState() => _ClientCpfPageState();
 }
 
-class _CompleteNamePageState extends State<CompleteNamePage> {
-  final _nameController = TextEditingController();
+class _ClientCpfPageState extends State<ClientCpfPage> {
+  final _cpfController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
-  String? _errorMessage; // Variável para a mensagem de erro centralizada
+  String? _errorMessage;
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _cpfController.dispose();
     super.dispose();
   }
 
@@ -49,58 +51,47 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
   }
 
   Future<void> _continue() async {
-    _clearError(); // Limpa erros anteriores
+    _clearError();
 
     if (!(_formKey.currentState?.validate() ?? false)) {
-      _showError('Por favor, preencha seu nome completo.');
+      _showError('Por favor, preencha o CPF corretamente.');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final name = _nameController.text.trim();
+      final cpf = _cpfController.text.replaceAll(RegExp(r'[^0-9]'), '');
       final user = _supabase.auth.currentUser;
-      
+
       if (user == null) {
         throw Exception('Usuário não autenticado');
       }
 
-      // Preparar dados para atualização
-      final updateData = <String, dynamic>{
-        'full_name': name,
-        'email': widget.email,
-        'phone': widget.phone,
-      };
+      // Salvar CPF no perfil
+      await _supabase.from('profiles').update({
+        'cpf': cpf,
+      }).eq('id', user.id);
 
-      // Debug: mostrar o que será enviado
-      print('📤 [CompleteNamePage] Enviando UPDATE para Supabase:');
-      print('   - full_name: ${updateData['full_name']}');
-      print('   - email: ${updateData['email']}');
-      print('   - phone: ${updateData['phone']}');
-      print('   - user.id: ${user.id}');
-
-      // Atualizar perfil (UPDATE - o perfil já existe pois foi criado na página anterior)
-      await _supabase.from('profiles').update(updateData).eq('id', user.id);
-
-      print('✅ [CompleteNamePage] Dados atualizados com sucesso!');
+      print('✅ [ClientCpfPage] CPF salvo com sucesso!');
 
       if (!mounted) return;
 
-      // Navegar para ClientCpfPage passando os dados
+      // Navegar para ClientBirthdatePage
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ClientCpfPage(
+          builder: (context) => ClientBirthdatePage(
             email: widget.email,
             phone: widget.phone,
-            fullName: name,
+            fullName: widget.fullName,
+            cpf: cpf,
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      _showError('Erro ao salvar nome: ${e.toString()}');
+      _showError('Erro ao salvar CPF: ${e.toString()}');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -140,12 +131,19 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
               children: [
                 const SizedBox(height: AppSpacing.spacing16),
                 Text(
-                  'Nome completo', // Título
+                  'Qual é o seu CPF?',
                   style: AppTypography.heading1.copyWith(
                     color: AppColorsNeutral.neutral900,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.spacing32), // Mais espaço
+                const SizedBox(height: AppSpacing.spacing8),
+                Text(
+                  'Precisamos do seu CPF para processar pagamentos de forma segura.',
+                  style: AppTypography.contentRegular.copyWith(
+                    color: AppColorsNeutral.neutral600,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.spacing32),
 
                 // Mensagem de erro centralizada
                 if (_errorMessage != null) ...[
@@ -153,30 +151,35 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
                     _errorMessage!,
                     textAlign: TextAlign.center,
                     style: AppTypography.contentMedium.copyWith(
-                      color: AppColorsError.error500, // Cor de erro
+                      color: AppColorsError.error500,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.spacing16), // Espaçamento após a mensagem de erro
+                  const SizedBox(height: AppSpacing.spacing16),
                 ],
 
-                // Campo Nome Completo
-                AppTextField( // Usando AppTextField em vez de TextField
-                  label: 'Informe seu nome completo', // Usando label como na imagem
-                  hintText: 'Nome completo', // Placeholder
-                  controller: _nameController,
-                  keyboardType: TextInputType.name,
+                // Campo CPF
+                AppTextField(
+                  label: 'CPF',
+                  hintText: '000.000.000-00',
+                  controller: _cpfController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    _CpfInputFormatter(),
+                  ],
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Por favor, informe seu nome completo';
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, informe seu CPF';
                     }
-                     if (value.trim().split(' ').length < 2) { // Validação simples para nome + sobrenome
-                      return 'Por favor, informe nome e sobrenome';
+                    final cpf = value.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (cpf.length != 11) {
+                      return 'CPF deve conter 11 dígitos';
                     }
                     return null;
                   },
                 ),
 
-                const SizedBox(height: AppSpacing.spacing32), // Espaço antes do botão
+                const SizedBox(height: AppSpacing.spacing32),
 
                 // Botão Continuar
                 _isLoading
@@ -187,12 +190,38 @@ class _CompleteNamePageState extends State<CompleteNamePage> {
                         minWidth: double.infinity,
                       ),
 
-                const SizedBox(height: AppSpacing.spacing16), // Espaço inferior
+                const SizedBox(height: AppSpacing.spacing16),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Formatter para CPF: 000.000.000-00
+class _CpfInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < digits.length && i < 11; i++) {
+      if (i == 3 || i == 6) {
+        buffer.write('.');
+      } else if (i == 9) {
+        buffer.write('-');
+      }
+      buffer.write(digits[i]);
+    }
+
+    return TextEditingValue(
+      text: buffer.toString(),
+      selection: TextSelection.collapsed(offset: buffer.length),
     );
   }
 }

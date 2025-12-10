@@ -243,13 +243,23 @@ class PaymentServiceRest {
   /// [email] - Email do cliente
   /// [document] - CPF/CNPJ do cliente
   /// [type] - Tipo: 'individual' ou 'company'
-  /// [phoneNumbers] - Lista de telefones (opcional)
+  /// [code] - ID do usuário no sistema (opcional)
+  /// [gender] - Gênero (opcional)
+  /// [birthdate] - Data de nascimento DD/MM/AAAA (opcional)
+  /// [address] - Dados de endereço (opcional)
+  /// [mobilePhone] - Telefone celular (DDD + número) (opcional)
+  /// [metadata] - Metadados adicionais (opcional)
   Future<Map<String, dynamic>> createCustomer({
     required String name,
     required String email,
     required String document,
     String type = 'individual',
-    List<String>? phoneNumbers,
+    String? code,
+    String? gender,
+    String? birthdate,
+    Map<String, String>? address,
+    Map<String, String>? mobilePhone,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       print('📡 Criando customer na API REST...');
@@ -257,18 +267,38 @@ class PaymentServiceRest {
       print('   📧 Email: $email');
       print('   📄 Documento: ${document.substring(0, 3)}***');
       
+      final Map<String, dynamic> body = {
+        'name': name,
+        'email': email,
+        'document': document,
+        'type': type,
+        'document_type': document.length > 11 ? 'CNPJ' : 'CPF',
+      };
+
+      if (code != null) body['code'] = code;
+      if (gender != null) body['gender'] = gender;
+      if (birthdate != null) body['birthdate'] = birthdate;
+      
+      if (address != null) {
+        body['address'] = address;
+      }
+
+      if (mobilePhone != null) {
+        body['phones'] = {
+          'mobile_phone': mobilePhone,
+        };
+      }
+
+      if (metadata != null) {
+        body['metadata'] = metadata;
+      }
+
       final response = await http.post(
         Uri.parse('$apiBaseUrl/api/customers'),
         headers: {
           'Content-Type': 'application/json',
         },
-        body: json.encode({
-          'name': name,
-          'email': email,
-          'document': document,
-          'type': type,
-          if (phoneNumbers != null) 'phone_numbers': phoneNumbers,
-        }),
+        body: json.encode(body),
       );
 
       final responseData = json.decode(response.body) as Map<String, dynamic>;
@@ -391,6 +421,113 @@ class PaymentServiceRest {
     } catch (e) {
       print('❌ Erro ao criar transferência: $e');
       throw Exception('Erro ao criar transferência: ${e.toString()}');
+    }
+  }
+  /// Cria um cartão para um cliente usando a API REST Node.js
+  ///
+  /// [customerPagarmeId] - ID do cliente no Pagar.me
+  /// [cardData] - Token (String) ou Map com dados brutos
+  Future<Map<String, dynamic>> createCard({
+    required String customerPagarmeId,
+    required dynamic cardData,
+  }) async {
+    try {
+      print('📡 Criando cartão na API REST...');
+      print('   👤 Customer Pagar.me ID: $customerPagarmeId');
+      
+      final Map<String, dynamic> body = {
+        'customer_id': customerPagarmeId,
+      };
+
+      if (cardData is String) {   
+        print('   💳 Usando Card Token: ${cardData.substring(0, 10)}...');
+        body['card_token'] = cardData;
+      } else if (cardData is Map) {
+        print('   💳 Usando Dados Brutos do Cartão');
+        body.addAll(cardData as Map<String, dynamic>);
+        print('   📦 Payload do cartão sendo enviado: ${json.encode(body)}');
+      } else {
+        throw Exception('Dados do cartão inválidos (esperado String ou Map)');
+      }
+
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/api/cards'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(body),
+      );
+
+      final responseData = json.decode(response.body) as Map<String, dynamic>;
+
+      // Verificar se é um status de sucesso (200 OK ou 201 Created)
+      final isSuccessStatus = response.statusCode >= 200 && response.statusCode < 300;
+
+      if (!isSuccessStatus) {
+        final error = responseData['error'] ?? responseData['message'] ?? 'Erro desconhecido';
+        print('❌ Erro ao criar cartão: $error');
+        throw Exception('Erro ao criar cartão: $error');
+      }
+
+      print('✅ Cartão criado com sucesso!');
+      print('   🆔 Card ID: ${responseData['data']?['pagarme_card_id'] ?? responseData['id']}');
+      return responseData;
+      
+    } catch (e) {
+      print('❌ Erro ao criar cartão: $e');
+      throw Exception('Erro ao criar cartão: ${e.toString()}');
+    }
+  }
+  /// Lista os cartões salvos de um cliente
+  ///
+  /// [customerPagarmeId] - ID do cliente no Pagar.me
+  ///
+  /// Retorna uma lista de mapas com os dados dos cartões
+  Future<List<Map<String, dynamic>>> listCards({
+    required String customerPagarmeId,
+  }) async {
+    try {
+      print('📡 Buscando cartões na API REST...');
+      print('   👤 Customer ID: $customerPagarmeId');
+      
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/api/customers/$customerPagarmeId/cards'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('📡 Resposta recebida da API (listCards)');
+      print('   Status: ${response.statusCode}');
+
+      final responseBody = json.decode(response.body);
+
+      // Se a resposta for uma lista direta (arranjado pelo backend)
+      if (responseBody is List) {
+        return List<Map<String, dynamic>>.from(responseBody);
+      }
+      
+      // Se a resposta for um objeto com campo 'data' (padrao API Pagar.me)
+      if (responseBody is Map && responseBody.containsKey('data')) {
+        final data = responseBody['data'];
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+      }
+
+      // Se der erro ou formato desconhecido
+      if (response.statusCode >= 400) {
+        final error = responseBody['error'] ?? responseBody['message'] ?? 'Erro desconhecido';
+        print('❌ Erro ao listar cartões: $error');
+        throw Exception('Erro ao listar cartões: $error');
+      }
+
+      print('⚠️ Formato de resposta inesperado ao listar cartões. Retornando lista vazia.');
+      return [];
+
+    } catch (e) {
+      print('❌ Erro ao listar cartões: $e');
+      throw Exception('Erro ao listar cartões: ${e.toString()}');
     }
   }
 }

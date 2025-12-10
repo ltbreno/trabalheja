@@ -8,13 +8,22 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/core/widgets/MainAppShell.dart';
+import 'package:trabalheja/features/payment/service/payment_service.dart';
 
 class AddressPage extends StatefulWidget {
   final String? fullName; // Nome completo vindo da página anterior
+  final String? email;
+  final String? phone;
+  final String? cpf;
+  final String? birthdate;
 
   const AddressPage({
     super.key,
     this.fullName,
+    this.email,
+    this.phone,
+    this.cpf,
+    this.birthdate,
   });
 
   @override
@@ -131,6 +140,11 @@ class _AddressPageState extends State<AddressPage> {
 
       print('✅ [AddressPage] Dados atualizados com sucesso!');
 
+      // Criar customer no Pagar.me se temos todos os dados necessários
+      if (widget.cpf != null && widget.cpf!.isNotEmpty) {
+        await _createPagarmeCustomer(user.id, nameToSave ?? '');
+      }
+
       if (!mounted) return;
 
       // Navegar para a tela principal do app (MainAppShell)
@@ -150,6 +164,99 @@ class _AddressPageState extends State<AddressPage> {
     }
   }
 
+  /// Cria um customer no Pagar.me para o cliente
+  Future<void> _createPagarmeCustomer(String userId, String fullName) async {
+    try {
+      print('📡 [AddressPage] Criando customer no Pagar.me...');
+      
+      final paymentService = PaymentService();
+      
+      // Montar telefone no formato esperado
+      final phone = widget.phone ?? '';
+      final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+      Map<String, String>? mobilePhone;
+      
+      if (phoneDigits.length >= 10) {
+        // Assumindo formato brasileiro DDD + 9 digitos (11 total) ou DDD + 8 digitos (10 total)
+        final ddd = phoneDigits.substring(0, 2);
+        final number = phoneDigits.substring(2);
+        mobilePhone = {
+          'country_code': '55',
+          'area_code': ddd,
+          'number': number,
+        };
+      }
+
+      // Formatar data de nascimento: converter YYYY-MM-DD para MM/DD/AAAA (Formato Americano)
+      String? birthdateForApi = widget.birthdate;
+      
+      if (birthdateForApi != null && birthdateForApi.contains('-')) {
+         final parts = birthdateForApi.split('-');
+         if (parts.length == 3) {
+           // parts[0] = YYYY, parts[1] = MM, parts[2] = DD
+           birthdateForApi = '${parts[1]}/${parts[2]}/${parts[0]}';
+         }
+      }
+
+      // Tentar extrair cidade e estado do controller (formato esperado: "Cidade, UF" ou apenas "Cidade")
+      String city = _cidadeController.text;
+      String state = 'SP'; // Default fallback
+      
+      if (city.contains(',')) {
+        final cityParts = city.split(',');
+        city = cityParts[0].trim();
+        if (cityParts.length > 1) {
+          final possibleState = cityParts[1].trim();
+          if (possibleState.length == 2) {
+            state = possibleState.toUpperCase();
+          }
+        }
+      }
+
+      // Montar objeto de endereço
+      final address = {
+        'line_1': '${_ruaController.text}, ${_numeroController.text}',
+        'line_2': _complementoController.text,
+        'zip_code': _cepController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+        'city': city,
+        'state': state,
+        'country': 'BR',
+      };
+
+      final result = await paymentService.createCustomer(
+        name: fullName,
+        email: widget.email ?? '',
+        document: widget.cpf ?? '',
+        type: 'individual',
+        code: userId,
+        birthdate: birthdateForApi,
+        mobilePhone: mobilePhone,
+        address: address,
+        metadata: {
+           'source': 'app_trabalheja',
+           'account_type': 'client',
+        }
+      );
+
+      // Extrair o ID do customer criado
+      final customerId = result['data']?['pagarme_customer_id'] ?? result['id'];
+      
+      if (customerId != null) {
+        // Salvar o ID do customer no perfil
+        await _supabase.from('profiles').update({
+          'pagarme_customer_id': customerId,
+        }).eq('id', userId);
+        
+        print('✅ [AddressPage] Customer Pagar.me criado e salvo: $customerId');
+      } else {
+        print('⚠️ [AddressPage] Customer criado mas ID não retornado');
+      }
+    } catch (e) {
+      // Não bloquear o cadastro por erro no Pagar.me
+      print('❌ [AddressPage] Erro ao criar customer no Pagar.me: $e');
+      // O cadastro continua normalmente, o customer pode ser criado depois
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
