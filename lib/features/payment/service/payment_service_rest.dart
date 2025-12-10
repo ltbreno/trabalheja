@@ -27,7 +27,8 @@ class PaymentServiceRest {
   /// Retorna os dados da resposta da API
   Future<Map<String, dynamic>> createPayment({
     required int amount,
-    required String cardToken,
+    String? cardToken,
+    String? cardId,
     required String customerName,
     required String customerEmail,
     required String customerDocument,
@@ -38,7 +39,8 @@ class PaymentServiceRest {
       print('   🌐 Base URL: $apiBaseUrl');
       print('   📍 Endpoint: $apiBaseUrl/api/payments');
       print('   amount: $amount');
-      print('   card_token: ${cardToken.length > 10 ? '${cardToken.substring(0, 10)}...' : cardToken}');
+      print('   card_token: ${cardToken != null ? (cardToken.length > 10 ? '${cardToken.substring(0, 10)}...' : cardToken) : "null"}');
+      print('   card_id: $cardId');
       print('   customer_name: $customerName');
       print('   customer_email: $customerEmail');
       if (proposalId != null) {
@@ -46,19 +48,28 @@ class PaymentServiceRest {
       }
       print('   💡 Retenção: 100% na plataforma (split será feito depois)');
 
+      final Map<String, dynamic> body = {
+        'amount': amount,
+        'customer_name': customerName,
+        'customer_email': customerEmail,
+        'customer_document': customerDocument,
+        if (proposalId != null) 'proposal_id': proposalId,
+      };
+
+      if (cardId != null) {
+        body['card_id'] = cardId;
+      } else if (cardToken != null) {
+        body['card_token'] = cardToken;
+      } else {
+        throw Exception('É necessário fornecer cardToken ou cardId');
+      }
+
       final response = await http.post(
         Uri.parse('$apiBaseUrl/api/payments'),
         headers: {
           'Content-Type': 'application/json',
         },
-        body: json.encode({
-          'amount': amount,
-          'card_token': cardToken,
-          'customer_name': customerName,
-          'customer_email': customerEmail,
-          'customer_document': customerDocument,
-          if (proposalId != null) 'proposal_id': proposalId,
-        }),
+        body: json.encode(body),
       );
 
       print('📡 Resposta recebida da API');

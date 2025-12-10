@@ -31,7 +31,8 @@ class PaymentService {
   /// Caso contrário, usa Edge Functions do Supabase
   Future<Map<String, dynamic>> createPayment({
     required int amount,
-    required String cardToken,
+    String? cardToken,
+    String? cardId,
     required String customerName,
     required String customerEmail,
     required String customerDocument,
@@ -46,6 +47,7 @@ class PaymentService {
       return await _restService.createPayment(
         amount: amount,
         cardToken: cardToken,
+        cardId: cardId,
         customerName: customerName,
         customerEmail: customerEmail,
         customerDocument: customerDocument,
@@ -57,7 +59,7 @@ class PaymentService {
     try {
       print('📡 Chamando Edge Function create-payment...');
       print('   amount: $amount');
-      print('   card_token: ${cardToken.length > 10 ? '${cardToken.substring(0, 10)}...' : cardToken}');
+      print('   card_token: ${cardToken != null ? (cardToken.length > 10 ? '${cardToken.substring(0, 10)}...' : cardToken) : "null"}');
       print('   customer_name: $customerName');
       print('   customer_email: $customerEmail');
       print('   💡 Retenção: 100% na plataforma (split será feito depois)');
