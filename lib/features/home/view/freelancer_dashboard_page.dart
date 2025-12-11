@@ -11,8 +11,10 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/core/utils/distance_calculator.dart' as distance_util;
 import 'package:trabalheja/core/widgets/map_with_markers.dart';
 import 'package:trabalheja/core/widgets/empty_state.dart';
+import 'package:trabalheja/core/widgets/language_selector.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/service_request/view/service_details_page.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class FreelancerDashboardPage extends StatefulWidget {
   const FreelancerDashboardPage({super.key});
@@ -239,47 +241,53 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
             onMarkerTap: _onMarkerTap,
           ),
           
-          // Botão "Bicos próximos"
+          // Botão "Bicos próximos" e Language Selector
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
             right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.spacing16,
-                vertical: AppSpacing.spacing12,
-              ),
-              decoration: BoxDecoration(
-                color: AppColorsPrimary.primary700,
-                borderRadius: AppRadius.radius8,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.spacing16,
+                    vertical: AppSpacing.spacing12,
                   ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SvgPicture.asset(
-                    'assets/icons/location_pin.svg',
-                    height: 20,
-                    colorFilter: ColorFilter.mode(
-                      AppColorsNeutral.neutral0,
-                      BlendMode.srcIn,
-                    ),
+                  decoration: BoxDecoration(
+                    color: AppColorsPrimary.primary700,
+                    borderRadius: AppRadius.radius8,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: AppSpacing.spacing8),
-                  Text(
-                    'Bicos próximos',
-                    style: AppTypography.contentMedium.copyWith(
-                      color: AppColorsNeutral.neutral0,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SvgPicture.asset(
+                        'assets/icons/location_pin.svg',
+                        height: 20,
+                        colorFilter: ColorFilter.mode(
+                          AppColorsNeutral.neutral0,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.spacing8),
+                      Text(
+                        AppLocalizations.of(context)!.nearbyServices,
+                        style: AppTypography.contentMedium.copyWith(
+                          color: AppColorsNeutral.neutral0,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const Spacer(),
+                const LanguageSelector(),
+              ],
             ),
           ),
           
@@ -325,7 +333,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                         children: [
                           // Título
                           Text(
-                            'Qual bico você está procurando?',
+                            AppLocalizations.of(context)!.searchServicesTitle,
                             style: AppTypography.highlightBold.copyWith(
                               color: AppColorsNeutral.neutral900,
                             ),
@@ -336,7 +344,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                           TextField(
                             controller: _searchController,
                             decoration: InputDecoration(
-                              hintText: 'Pesquisar serviços',
+                              hintText: AppLocalizations.of(context)!.searchServicesHint,
                               prefixIcon: Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: SvgPicture.asset(
@@ -377,7 +385,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                           // Cliente selecionado (se houver)
                           if (_selectedRequest != null) ...[
                             Text(
-                              'Cliente selecionado',
+                              AppLocalizations.of(context)!.selectedClient,
                               style: AppTypography.captionRegular.copyWith(
                                 color: AppColorsNeutral.neutral600,
                               ),
@@ -389,7 +397,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                           
                           // Clientes próximos
                           Text(
-                            'Clientes próximos',
+                            AppLocalizations.of(context)!.nearbyClients,
                             style: AppTypography.captionRegular.copyWith(
                               color: AppColorsNeutral.neutral600,
                             ),
@@ -400,10 +408,10 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                           if (_filteredRequests.isEmpty)
                             EmptyState(
                               icon: Icons.work_outline,
-                              title: 'Nenhum bico encontrado',
+                              title: AppLocalizations.of(context)!.noServicesFound,
                               subtitle: _searchController.text.isEmpty
-                                  ? 'Não há solicitações próximas no momento. Tente aumentar seu raio de atuação.'
-                                  : 'Nenhum resultado para "${_searchController.text}"',
+                                  ? AppLocalizations.of(context)!.noServicesFoundSubtitle
+                                  : AppLocalizations.of(context)!.noSearchResults(_searchController.text),
                             )
                           else
                             ..._filteredRequests.asMap().entries.map((entry) {
@@ -488,7 +496,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
             children: [
               _buildInfoChip(
                 icon: Icons.location_on,
-                text: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                text: AppLocalizations.of(context)!.distanceAway(distance_util.AppDistanceCalculator.formatDistance(distance)),
               ),
               const SizedBox(width: AppSpacing.spacing8),
               _buildInfoChip(
@@ -498,7 +506,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
               const SizedBox(width: AppSpacing.spacing8),
               _buildInfoChip(
                 icon: Icons.calendar_today,
-                text: 'Em até $deadlineHours horas',
+                text: AppLocalizations.of(context)!.deadlineInHours(deadlineHours),
               ),
             ],
           ),
@@ -507,7 +515,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
           
           // Botão
           AppButton.primary(
-            text: 'Detalhes do serviço',
+            text: AppLocalizations.of(context)!.serviceDetails,
             onPressed: () {
               if (_selectedRequest != null) {
                 Navigator.push(

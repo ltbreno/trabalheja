@@ -8,6 +8,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/features/auth/view/reset_password_request_page.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class EmailLoginPage extends StatefulWidget {
   const EmailLoginPage({super.key});
@@ -49,7 +50,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
 
     // Validar o formulário antes de prosseguir
     if (!(_formKey.currentState?.validate() ?? false)) {
-      _showError('Por favor, preencha todos os campos corretamente.');
+      _showError(AppLocalizations.of(context)!.fillFieldsCorrectly);
       return;
     }
 
@@ -71,26 +72,26 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       } else {
-        _showError('Erro ao fazer login. Tente novamente.');
+        _showError(AppLocalizations.of(context)!.loginErrorGeneric);
       }
     } on AuthException catch (e) {
       if (!mounted) return;
 
-      String errorMessage = 'Erro ao fazer login.';
+      String errorMessage = AppLocalizations.of(context)!.loginErrorGeneric;
       final message = e.message.toLowerCase();
       
       if (message.contains('invalid login credentials') ||
           (message.contains('invalid') && message.contains('credentials'))) {
-        errorMessage = 'Email ou senha incorretos.';
+        errorMessage = AppLocalizations.of(context)!.invalidCredentials;
       } else if (message.contains('email not confirmed') ||
                  message.contains('email_not_confirmed') ||
                  message.contains('unconfirmed email')) {
-        errorMessage = 'Por favor, confirme seu email antes de fazer login.';
+        errorMessage = AppLocalizations.of(context)!.emailNotConfirmed;
       } else if (message.contains('too many requests') ||
                  message.contains('rate limit')) {
-        errorMessage = 'Muitas tentativas. Aguarde alguns instantes e tente novamente.';
+        errorMessage = AppLocalizations.of(context)!.tooManyRequests;
       } else {
-        errorMessage = e.message.isNotEmpty ? e.message : 'Erro ao fazer login. Tente novamente.';
+        errorMessage = e.message.isNotEmpty ? e.message : AppLocalizations.of(context)!.loginErrorGeneric;
       }
 
       _showError(errorMessage);
@@ -128,7 +129,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
           },
         ),
         title: Text(
-          'Voltar',
+          AppLocalizations.of(context)!.back,
           style: AppTypography.contentMedium.copyWith(
             color: AppColorsNeutral.neutral900,
           ),
@@ -158,17 +159,17 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
 
                 // Campo de E-mail
                 AppTextField(
-                  label: 'Digite seu e-mail',
-                  hintText: 'E-mail',
+                  label: AppLocalizations.of(context)!.enterEmail,
+                  hintText: AppLocalizations.of(context)!.emailHint,
                   controller: _emailController,
                   prefixIconPath: 'assets/icons/mail.svg', // Ícone de email
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) { // Exemplo de validação simples
                     if (value == null || value.isEmpty) {
-                      return 'Por favor, digite seu e-mail';
+                      return AppLocalizations.of(context)!.enterEmail;
                     }
                     if (!value.contains('@')) { // Validação básica de email
-                       return 'Por favor, digite um e-mail válido';
+                       return AppLocalizations.of(context)!.invalidEmail;
                     }
                     return null; // Válido
                   },
@@ -178,8 +179,8 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
 
                 // Campo de Senha
                 AppTextField(
-                  label: 'Digite sua senha',
-                  hintText: 'Senha',
+                  label: AppLocalizations.of(context)!.enterPassword,
+                  hintText: AppLocalizations.of(context)!.passwordHint,
                   controller: _passwordController,
                   prefixIconPath: 'assets/icons/lock.svg', // Ícone de cadeado
                   obscureText: !_isPasswordVisible, // Controla a visibilidade
@@ -193,10 +194,10 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
                   },
                    validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Por favor, digite sua senha';
+                      return AppLocalizations.of(context)!.enterPassword;
                     }
                      if (value.length < 6) { // Exemplo: mínimo 6 caracteres
-                       return 'A senha deve ter pelo menos 6 caracteres';
+                       return AppLocalizations.of(context)!.passwordMinLength;
                      }
                     return null; // Válido
                   },
@@ -208,7 +209,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : AppButton.primary(
-                        text: 'Entrar',
+                        text: AppLocalizations.of(context)!.loginButton,
                         onPressed: _handleLogin,
                         minWidth: double.infinity,
                       ),
@@ -228,7 +229,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
                       );
                     },
                     child: Text(
-                      'Esqueci minha senha',
+                      AppLocalizations.of(context)!.forgotPassword,
                       style: AppTypography.contentMedium.copyWith(
                         color: AppColorsPrimary.primary800, // Cor primária escura
                         decoration: TextDecoration.underline,

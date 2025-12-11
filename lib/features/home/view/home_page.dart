@@ -5,11 +5,13 @@ import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/core/widgets/language_selector.dart';
 import 'package:trabalheja/core/widgets/skeleton_loader.dart';
 import 'package:trabalheja/features/proposals/view/proposals_page.dart';
 import 'package:trabalheja/features/review/view/review_service_page.dart';
 import 'package:trabalheja/features/service_request/view/request_service_page.dart';
 import 'package:trabalheja/features/home/view/freelancer_dashboard_page.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -102,8 +104,8 @@ class _HomePageState extends State<HomePage> {
                       _buildAnimatedDashboardItem(
                         context: context,
                         iconPath: 'assets/icons/freelancer.svg',
-                        title: 'Solicitar freelancer',
-                        subtitle: 'Precisa de um serviço? Solicite um freelancer agora e receba propostas',
+                        title: AppLocalizations.of(context)!.requestFreelancer,
+                        subtitle: AppLocalizations.of(context)!.requestFreelancerSubtitle,
                         delay: 0,
                         onTap: () {
                           Navigator.push(
@@ -117,8 +119,8 @@ class _HomePageState extends State<HomePage> {
                       _buildAnimatedDashboardItem(
                         context: context,
                         iconPath: 'assets/icons/document.svg',
-                        title: 'Propostas recebidas',
-                        subtitle: 'Acompanhe as propostas enviadas pelos freelancers',
+                        title: AppLocalizations.of(context)!.receivedProposals,
+                        subtitle: AppLocalizations.of(context)!.receivedProposalsSubtitle,
                         delay: 100,
                         onTap: () {
                           Navigator.push(
@@ -132,8 +134,8 @@ class _HomePageState extends State<HomePage> {
                       _buildAnimatedDashboardItem(
                         context: context,
                         iconPath: 'assets/icons/star.svg',
-                        title: 'Avaliar serviços',
-                        subtitle: 'Avalie serviços realizados pelos freelancers',
+                        title: AppLocalizations.of(context)!.rateServices,
+                        subtitle: AppLocalizations.of(context)!.rateServicesSubtitle,
                         delay: 200,
                         onTap: () {
                           Navigator.push(
@@ -216,7 +218,7 @@ class _HomePageState extends State<HomePage> {
           ? trimmedName.split(' ').first 
           : trimmedName;
     } else {
-      displayName = 'Usuário';
+      displayName = AppLocalizations.of(context)!.user;
     }
     
     final initials = _getInitials(fullName);
@@ -237,19 +239,22 @@ class _HomePageState extends State<HomePage> {
               : null,
         ),
         const SizedBox(width: AppSpacing.spacing12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Bem-vindo,',
-              style: AppTypography.captionRegular.copyWith(color: AppColorsNeutral.neutral600),
-            ),
-            Text(
-              displayName,
-              style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral900),
-            ),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppLocalizations.of(context)!.welcome,
+                style: AppTypography.captionRegular.copyWith(color: AppColorsNeutral.neutral600),
+              ),
+              Text(
+                displayName,
+                style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral900),
+              ),
+            ],
+          ),
         ),
+        const LanguageSelector(),
       ],
     );
   }

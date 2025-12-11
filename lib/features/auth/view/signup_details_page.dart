@@ -9,6 +9,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/features/auth/view/select_account_type_page.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class SignUpDetailsPage extends StatefulWidget {
   final String email; // Recebe o e-mail da tela anterior
@@ -60,7 +61,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
     _clearError(); // Limpa erros anteriores
 
     if (!(_formKey.currentState?.validate() ?? false)) {
-      _showError('Por favor, preencha todos os campos corretamente.');
+      _showError(AppLocalizations.of(context)!.fillFieldsCorrectly);
       return;
     }
 
@@ -100,17 +101,17 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
         );
       } else {
         // Erro ao criar conta
-        _showError('Erro ao criar conta. Tente novamente.');
+        _showError(AppLocalizations.of(context)!.createAccountError);
       }
     } on AuthException catch (e) {
       if (!mounted) return;
       
       // Tratar erros específicos do Supabase
-      String errorMessage = 'Erro ao criar conta.';
+      String errorMessage = AppLocalizations.of(context)!.createAccountError;
       if (e.message.contains('already registered')) {
-        errorMessage = 'Este email já está cadastrado.';
+        errorMessage = AppLocalizations.of(context)!.emailAlreadyRegistered;
       } else if (e.message.contains('invalid')) {
-        errorMessage = 'Email ou senha inválidos.';
+        errorMessage = AppLocalizations.of(context)!.invalidEmailOrPassword;
       } else {
         errorMessage = e.message;
       }
@@ -119,7 +120,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
     } catch (e) {
       if (!mounted) return;
       
-      _showError('Erro ao criar conta: ${e.toString()}');
+      _showError(AppLocalizations.of(context)!.createAccountErrorDetails(e.toString()));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -144,7 +145,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
           },
         ),
         title: Text(
-          'Voltar',
+          AppLocalizations.of(context)!.back,
           style: AppTypography.contentMedium.copyWith(
             color: AppColorsNeutral.neutral900,
           ),
@@ -160,14 +161,14 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
               children: [
                 const SizedBox(height: AppSpacing.spacing16),
                 Text(
-                  'Por último, precisamos\nde mais alguns dados', // Título
+                  AppLocalizations.of(context)!.signupDetailsTitle, // Título
                   style: AppTypography.heading1.copyWith(
                     color: AppColorsNeutral.neutral900,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.spacing8),
                 Text(
-                  'Vamos precisar que informe alguns dados extras de segurança e contato.', // Subtítulo
+                  AppLocalizations.of(context)!.signupDetailsSubtitle, // Subtítulo
                   style: AppTypography.contentRegular.copyWith(
                     color: AppColorsNeutral.neutral600,
                   ),
@@ -188,19 +189,19 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
 
                 // Campo de Telefone com Máscara
                 AppTextField(
-                  label: 'Qual seu telefone?',
-                  hintText: '(00) 00000-0000', // Exibe a máscara como hint
+                  label: AppLocalizations.of(context)!.enterPhone,
+                  hintText: AppLocalizations.of(context)!.phoneHint, // Exibe a máscara como hint
                   controller: _phoneController,
                   prefixIconPath: 'assets/icons/phone.svg', // Adapte o ícone
                   keyboardType: TextInputType.phone,
                   inputFormatters: [_phoneMaskFormatter], // Aplica a máscara
                   validator: (value) {
                      if (value == null || value.isEmpty) {
-                       return 'Por favor, digite seu telefone';
+                       return AppLocalizations.of(context)!.enterPhoneError;
                      }
                       // Validação adicional do telefone, se necessário
                      if (!_phoneMaskFormatter.isFill()) {
-                        return 'Telefone incompleto';
+                        return AppLocalizations.of(context)!.incompletePhone;
                      }
                     return null;
                   },
@@ -209,8 +210,8 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
 
                 // Campo Senha
                 AppTextField(
-                  label: 'Escolha uma senha',
-                  hintText: 'Digite uma senha',
+                  label: AppLocalizations.of(context)!.choosePassword,
+                  hintText: AppLocalizations.of(context)!.enterPasswordHint,
                   controller: _passwordController,
                   obscureText: !_isPasswordVisible,
                   prefixIconPath: 'assets/icons/lock.svg',
@@ -220,7 +221,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                   onSuffixIconTap: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
                   validator: (value) {
                     if (value == null || value.length < 6) {
-                      return 'A senha deve ter pelo menos 6 caracteres';
+                      return AppLocalizations.of(context)!.passwordMinLength;
                     }
                     return null;
                   },
@@ -229,8 +230,8 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
 
                 // Campo Confirmar Senha
                 AppTextField(
-                  label: 'Confirme a senha',
-                  hintText: 'Digite novamente a senha',
+                  label: AppLocalizations.of(context)!.confirmPassword,
+                  hintText: AppLocalizations.of(context)!.reenterPassword,
                   controller: _confirmPasswordController,
                   obscureText: !_isConfirmPasswordVisible,
                    prefixIconPath: 'assets/icons/lock.svg',
@@ -240,10 +241,10 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                   onSuffixIconTap: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Por favor, confirme sua senha';
+                      return AppLocalizations.of(context)!.confirmPasswordError;
                     }
                     if (value != _passwordController.text) {
-                      return 'As senhas não coincidem';
+                      return AppLocalizations.of(context)!.passwordsDoNotMatch;
                     }
                     return null;
                   },
@@ -254,7 +255,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : AppButton.primary(
-                        text: 'Continuar',
+                        text: AppLocalizations.of(context)!.continueButton,
                         onPressed: _continue,
                         minWidth: double.infinity,
                       ),

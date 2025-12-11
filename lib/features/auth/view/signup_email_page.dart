@@ -9,6 +9,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/features/auth/view/signup_details_page.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class SignUpEmailPage extends StatefulWidget {
   const SignUpEmailPage({super.key});
@@ -64,7 +65,7 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
           },
         ),
         title: Text(
-          'Voltar',
+          AppLocalizations.of(context)!.back,
           style: AppTypography.contentMedium.copyWith(
             color: AppColorsNeutral.neutral900,
           ),
@@ -80,7 +81,7 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
               children: [
                 const SizedBox(height: AppSpacing.spacing16),
                 Text(
-                  'Primeiro, vamos criar\nsua conta', // Título
+                  AppLocalizations.of(context)!.createAccountTitle, // Título
                   style: AppTypography.heading1.copyWith(
                     color: AppColorsNeutral.neutral900,
                   ),
@@ -89,15 +90,15 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
 
                 // Campo de E-mail
                 AppTextField(
-                  label: 'Digite seu e-mail',
-                  hintText: 'E-mail',
+                  label: AppLocalizations.of(context)!.enterEmail,
+                  hintText: AppLocalizations.of(context)!.emailHint,
                   controller: _emailController,
                   prefixIconPath: 'assets/icons/mail.svg', // Ícone de email
                   keyboardType: TextInputType.emailAddress,
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9@._-]'))],
                   validator: (value) {
                     if (value == null || value.isEmpty || !value.contains('@')) {
-                      return 'Por favor, digite um e-mail válido';
+                      return AppLocalizations.of(context)!.invalidEmail;
                     }
                     return null;
                   },
@@ -107,7 +108,7 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
 
                 // Botão Continuar
                 AppButton.primary(
-                  text: 'Continuar',
+                  text: AppLocalizations.of(context)!.continueButton,
                   onPressed: _continue,
                   minWidth: double.infinity,
                 ),
@@ -124,7 +125,7 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
                       }
                     },
                     child: Text(
-                      'Já tenho uma conta',
+                      AppLocalizations.of(context)!.alreadyHaveAccount,
                       style: AppTypography.contentMedium.copyWith(
                         color: AppColorsPrimary.primary800,
                         decoration: TextDecoration.underline,
@@ -144,25 +145,25 @@ class _SignUpEmailPageState extends State<SignUpEmailPage> {
                     text: TextSpan(
                       style: AppTypography.captionRegular.copyWith(color: AppColorsNeutral.neutral500),
                       children: [
-                        const TextSpan(text: 'Ao se cadastrar, você concorda com nossos '),
+                        TextSpan(text: AppLocalizations.of(context)!.termsText1),
                         TextSpan(
-                          text: 'Termos e Condições',
+                          text: AppLocalizations.of(context)!.termsLink,
                           style: const TextStyle(decoration: TextDecoration.underline),
                           recognizer: TapGestureRecognizer()
                             ..onTap = () {
                               // Ação para abrir Termos (manter vazio ou implementar se houver URL)
                             },
                         ),
-                        const TextSpan(text: ' e '),
+                        TextSpan(text: AppLocalizations.of(context)!.termsText2),
                         TextSpan(
-                          text: 'Política de Privacidade',
+                          text: AppLocalizations.of(context)!.privacyLink,
                           style: const TextStyle(decoration: TextDecoration.underline),
                            recognizer: TapGestureRecognizer()
                             ..onTap = () {
                               // Ação para abrir Política (manter vazio ou implementar se houver URL)
                             },
                         ),
-                        const TextSpan(text: '.'),
+                        TextSpan(text: AppLocalizations.of(context)!.termsText3),
                       ],
                     ),
                   ),

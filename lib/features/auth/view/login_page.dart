@@ -9,6 +9,7 @@ import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/auth/view/welcome_page.dart';
 import 'package:trabalheja/features/auth/view/email_login_page.dart';
 import 'package:trabalheja/features/auth/view/signup_email_page.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -39,7 +40,7 @@ class LoginPage extends StatelessWidget {
           },
         ),
         title: Text(
-          'Voltar',
+          AppLocalizations.of(context)!.back,
           style: AppTypography.contentMedium.copyWith(
             color: AppColorsNeutral.neutral900, // Texto escuro
           ),
@@ -54,14 +55,14 @@ class LoginPage extends StatelessWidget {
               const SizedBox(height: AppSpacing.spacing16), // Espaço após AppBar
 
               Text(
-                'Bem-vindo(a) de volta\nao TrabalheJá',
+                AppLocalizations.of(context)!.welcomeBackTitle,
                 style: AppTypography.heading1.copyWith( // Título grande
                   color: AppColorsPrimary.primary800,
                 ),
               ),
               const SizedBox(height: AppSpacing.spacing8),
               Text(
-                'Escolha seu método de entrada da sua conta.',
+                AppLocalizations.of(context)!.chooseLoginMethod,
                 style: AppTypography.contentRegular.copyWith(
                   color: AppColorsNeutral.neutral600, // Subtítulo cinza
                 ),
@@ -71,7 +72,7 @@ class LoginPage extends StatelessWidget {
 
               // Botão Entrar com Email e Senha
               AppButton.primary(
-                text: 'Entrar com email e senha',
+                text: AppLocalizations.of(context)!.loginWithEmail,
                 iconLeftPath: 'assets/icons/mail.svg',
                 onPressed: () {
                   // TODO: Navegar para tela de login com email/senha
@@ -87,7 +88,7 @@ class LoginPage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _buildSocialButton(
-                      text: 'Entrar com Facebook',
+                      text: AppLocalizations.of(context)!.loginWithFacebook,
                       iconPath: 'assets/icons/facebook_logo.svg',
                       backgroundColor: const Color(0xFF1877F2), // Cor do Facebook
                       foregroundColor: AppColorsNeutral.neutral0, // Texto branco
@@ -100,7 +101,7 @@ class LoginPage extends StatelessWidget {
                   const SizedBox(width: AppSpacing.spacing12),
                   Expanded(
                     child: _buildSocialButton(
-                      text: 'Entrar com Google',
+                      text: AppLocalizations.of(context)!.loginWithGoogle,
                       iconPath: 'assets/icons/google_logo.svg',
                       backgroundColor: const Color(0xFFEB4335), // Cor vermelha do Google
                       foregroundColor: AppColorsNeutral.neutral0, // Texto branco
@@ -125,7 +126,7 @@ class LoginPage extends StatelessWidget {
                   );
                 },
                 child: Text(
-                  'Não tenho uma conta',
+                  AppLocalizations.of(context)!.dontHaveAccount,
                   style: AppTypography.contentMedium.copyWith(
                     color: AppColorsPrimary.primary800, // Cor primária escura
                     decoration: TextDecoration.underline,

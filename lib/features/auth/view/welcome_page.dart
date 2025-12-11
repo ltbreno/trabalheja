@@ -7,6 +7,7 @@ import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/auth/view/login_page.dart';
 import 'package:trabalheja/features/auth/view/signup_email_page.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -47,7 +48,7 @@ class WelcomePage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Acessar minha conta',
+                      AppLocalizations.of(context)!.accessMyAccount,
                       style: AppTypography.contentMedium.copyWith(
                         color: AppColorsNeutral.neutral0, // Texto branco
                       ),
@@ -83,7 +84,7 @@ class WelcomePage extends StatelessWidget {
         ),
       ),
       label: Text(
-        'Criar nova conta',
+        AppLocalizations.of(context)!.createAccount,
         style: AppTypography.contentBold.copyWith(
           color: AppColorsPrimary.primary900,
         ),
