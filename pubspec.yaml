@@ -1,16 +1,17 @@
 name: trabalheja
 description: "A new Flutter project."
-publish_to: 'none'
-
-
+publish_to: "none"
+version: 1.0.0+1
 
 environment:
   sdk: ^3.6.0
 
-
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 
   cupertino_icons: ^1.0.8
   flutter_bloc: ^9.1.1
@@ -35,11 +36,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
-
   flutter_lints: ^5.0.0
 
-
 flutter:
+  generate: true
   uses-material-design: true
 
   assets:
