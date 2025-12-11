@@ -1,0 +1,234 @@
+{
+  "@@locale": "pt",
+  
+  "appTitle": "TrabalheJá",
+  
+  "welcomeBack": "Bem-vindo de volta",
+  "welcome": "Bem-vindo,",
+  "user": "Usuário",
+  
+  "requestFreelancer": "Solicitar freelancer",
+  "requestFreelancerSubtitle": "Precisa de um serviço? Solicite um freelancer agora e receba propostas",
+  
+  "receivedProposals": "Propostas recebidas",
+  "receivedProposalsSubtitle": "Acompanhe as propostas enviadas pelos freelancers",
+  
+  "rateServices": "Avaliar serviços",
+  "rateServicesSubtitle": "Avalie serviços realizados pelos freelancers",
+  
+  "back": "Voltar",
+  "welcomeBackToApp": "Bem-vindo(a) de volta\nao TrabalheJá",
+  "chooseLoginMethod": "Escolha seu método de entrada da sua conta.",
+  "loginWithEmail": "Entrar com email e senha",
+  "loginWithFacebook": "Entrar com Facebook",
+  "loginWithGoogle": "Entrar com Google",
+  "noAccount": "Não tenho uma conta",
+  
+  "myData": "Meus dados",
+  "securityAndPassword": "Segurança e senha",
+  "bankDetails": "Dados Bancários",
+  "myCards": "Meus Cartões",
+  "addresses": "Endereços",
+  "termsOfUse": "Termos de uso",
+  "privacyPolicy": "Política de privacidade",
+  
+  "logout": "Sair da conta",
+  "logoutConfirmTitle": "Sair da conta",
+  "logoutConfirmMessage": "Tem certeza que deseja sair da sua conta?",
+  "cancel": "Cancelar",
+  "exit": "Sair",
+  
+  "talkToSupport": "Falar com suporte",
+  "frequentQuestions": "Dúvidas frequentes",
+  
+  "client": "Cliente",
+  "freelancer": "Freelancer",
+  
+  "language": "Idioma",
+  "selectLanguage": "Selecionar idioma",
+  "portuguese": "Português",
+  "english": "Inglês",
+  
+  "nearbyServices": "Bicos próximos",
+  "searchServicesTitle": "Qual bico você está procurando?",
+  "searchServicesHint": "Pesquisar serviços",
+  "selectedClient": "Cliente selecionado",
+  "nearbyClients": "Clientes próximos",
+  "noServicesFound": "Nenhum bico encontrado",
+  "noServicesFoundSubtitle": "Não há solicitações próximas no momento. Tente aumentar seu raio de atuação.",
+  "noSearchResults": "Nenhum resultado para \"{query}\"",
+  "@noSearchResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceDetails": "Detalhes do serviço",
+  "distanceAway": "Em {distance}",
+  "@distanceAway": {
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
+  },
+  "deadlineInHours": "Em até {hours} horas",
+  "@deadlineInHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+
+  "errorLoggingOut": "Erro ao sair: {error}",
+  "@errorLoggingOut": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
+  "all": "Todas",
+  "pending": "Pendentes",
+  "pendingCount": "Pendentes ({count})",
+  "@pendingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accepted": "Aceitas",
+  "acceptedCount": "Aceitas ({count})",
+  "@acceptedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "completed": "Concluídas",
+  "completedCount": "Concluídas ({count})",
+  "@completedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sentProposals": "Propostas enviadas",
+  "proposalsReceivedCount": "{count, plural, =1{1 proposta recebida} other{{count} propostas recebidas}}",
+  "@proposalsReceivedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proposalsSentCount": "{count, plural, =1{1 proposta enviada} other{{count} propostas enviadas}}",
+  "@proposalsSentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proposalAcceptedSuccess": "Proposta aceita com sucesso!",
+  "proposalRejected": "Proposta rejeitada.",
+  "errorAcceptingProposal": "Erro ao aceitar proposta",
+  "errorAcceptingProposalMessage": "Não foi possível aceitar a proposta. Tente novamente.",
+  "errorRejectingProposal": "Erro ao rejeitar proposta",
+  "errorRejectingProposalMessage": "Não foi possível rejeitar a proposta. Tente novamente.",
+  "chatInDevelopment": "Chat em desenvolvimento",
+  "timeframe": "Em até {time} {unit}",
+  "@timeframe": {
+    "placeholders": {
+      "time": {
+        "type": "int"
+      },
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+
+  "reject": "Rejeitar",
+  "accept": "Aceitar",
+  "proposalAcceptedBadge": "Proposta Aceita",
+  "paymentAction": "Realize o pagamento para iniciar o serviço",
+  "paymentReleasedBadge": "Pagamento liberado para o freelancer ✓",
+  "paymentHeldBadge": "Pagamento realizado! Libere após finalizar o serviço",
+  "makePayment": "Realizar Pagamento",
+  "chatWithFreelancer": "Conversar com Freelancer",
+  "chat": "Conversar",
+  "releasePayment": "Liberar Pagamento",
+  "paidBadge": "PAGA",
+  "released": "Liberado",
+  "retained": "Retido",
+  "paymentReleased": "Pagamento Liberado",
+  "paymentRetained": "Pagamento Retido",
+  "waitingConfirmation": "Aguardando confirmação",
+  "serviceLabel": "Serviço:",
+  "pix": "PIX",
+  "creditCard": "Cartão de Crédito",
+  "notInformed": "Não informado",
+  "dateNotAvailable": "Data não disponível",
+  "invalidDate": "Data inválida",
+  "atTime": "às",
+  "accessMyAccount": "Acessar minha conta",
+  "createAccount": "Criar nova conta",
+  "back": "Voltar",
+  "welcomeBackTitle": "Bem-vindo(a) de volta\nao TrabalheJá",
+  "chooseLoginMethod": "Escolha seu método de entrada da sua conta.",
+  "loginWithEmail": "Entrar com email e senha",
+  "loginWithFacebook": "Entrar com Facebook",
+  "loginWithGoogle": "Entrar com Google",
+  "dontHaveAccount": "Não tenho uma conta",
+  "fillFieldsCorrectly": "Por favor, preencha todos os campos corretamente.",
+  "loginErrorGeneric": "Erro ao fazer login. Tente novamente.",
+  "invalidCredentials": "Email ou senha incorretos.",
+  "emailNotConfirmed": "Por favor, confirme seu email antes de fazer login.",
+  "tooManyRequests": "Muitas tentativas. Aguarde alguns instantes e tente novamente.",
+  "enterEmail": "Digite seu e-mail",
+  "emailHint": "E-mail",
+  "invalidEmail": "Por favor, digite um e-mail válido",
+  "enterPassword": "Digite sua senha",
+  "passwordHint": "Senha",
+  "passwordMinLength": "A senha deve ter pelo menos 6 caracteres",
+  "loginButton": "Entrar",
+  "forgotPassword": "Esqueci minha senha",
+  "createAccountTitle": "Primeiro, vamos criar\nsua conta",
+  "continueButton": "Continuar",
+  "alreadyHaveAccount": "Já tenho uma conta",
+  "termsText1": "Ao se cadastrar, você concorda com nossos ",
+  "termsLink": "Termos e Condições",
+  "termsText2": " e ",
+  "privacyLink": "Política de Privacidade",
+  "termsText3": ".",
+  "createAccountError": "Erro ao criar conta. Tente novamente.",
+  "emailAlreadyRegistered": "Este email já está cadastrado.",
+  "invalidEmailOrPassword": "Email ou senha inválidos.",
+  "createAccountErrorDetails": "Erro ao criar conta: {error}",
+  "@createAccountErrorDetails": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "signupDetailsTitle": "Por último, precisamos\nde mais alguns dados",
+  "signupDetailsSubtitle": "Vamos precisar que informe alguns dados extras de segurança e contato.",
+  "enterPhone": "Qual seu telefone?",
+  "phoneHint": "(00) 00000-0000",
+  "enterPhoneError": "Por favor, digite seu telefone",
+  "incompletePhone": "Telefone incompleto",
+  "choosePassword": "Escolha uma senha",
+  "enterPasswordHint": "Digite uma senha",
+  "confirmPassword": "Confirme a senha",
+  "reenterPassword": "Digite novamente a senha",
+  "confirmPasswordError": "Por favor, confirme sua senha",
+  "passwordsDoNotMatch": "As senhas não coincidem"
+}

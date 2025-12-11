@@ -1,0 +1,234 @@
+{
+  "@@locale": "en",
+  
+  "appTitle": "TrabalheJá",
+  
+  "welcomeBack": "Welcome back",
+  "welcome": "Welcome,",
+  "user": "User",
+  
+  "requestFreelancer": "Request freelancer",
+  "requestFreelancerSubtitle": "Need a service? Request a freelancer now and receive proposals",
+  
+  "receivedProposals": "Received proposals",
+  "receivedProposalsSubtitle": "Track proposals sent by freelancers",
+  
+  "rateServices": "Rate services",
+  "rateServicesSubtitle": "Rate services performed by freelancers",
+  
+  "back": "Back",
+  "welcomeBackToApp": "Welcome back\nto TrabalheJá",
+  "chooseLoginMethod": "Choose your account login method.",
+  "loginWithEmail": "Login with email and password",
+  "loginWithFacebook": "Login with Facebook",
+  "loginWithGoogle": "Login with Google",
+  "noAccount": "I don't have an account",
+  
+  "myData": "My data",
+  "securityAndPassword": "Security and password",
+  "bankDetails": "Bank Details",
+  "myCards": "My Cards",
+  "addresses": "Addresses",
+  "termsOfUse": "Terms of use",
+  "privacyPolicy": "Privacy policy",
+  
+  "logout": "Log out",
+  "logoutConfirmTitle": "Log out",
+  "logoutConfirmMessage": "Are you sure you want to log out of your account?",
+  "cancel": "Cancel",
+  "exit": "Log out",
+  
+  "talkToSupport": "Talk to support",
+  "frequentQuestions": "Frequently asked questions",
+  
+  "client": "Client",
+  "freelancer": "Freelancer",
+  
+  "language": "Language",
+  "selectLanguage": "Select language",
+  "portuguese": "Portuguese",
+  "english": "English",
+  
+  "nearbyServices": "Nearby jobs",
+  "searchServicesTitle": "What job are you looking for?",
+  "searchServicesHint": "Search services",
+  "selectedClient": "Selected client",
+  "nearbyClients": "Nearby clients",
+  "noServicesFound": "No jobs found",
+  "noServicesFoundSubtitle": "No nearby requests at the moment. Try increasing your service radius.",
+  "noSearchResults": "No results for \"{query}\"",
+  "@noSearchResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceDetails": "Service details",
+  "distanceAway": "At {distance}",
+  "@distanceAway": {
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
+  },
+  "deadlineInHours": "Within {hours} hours",
+  "@deadlineInHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+
+  "errorLoggingOut": "Error logging out: {error}",
+  "@errorLoggingOut": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+
+  "all": "All",
+  "pending": "Pending",
+  "pendingCount": "Pending ({count})",
+  "@pendingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accepted": "Accepted",
+  "acceptedCount": "Accepted ({count})",
+  "@acceptedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "completed": "Completed",
+  "completedCount": "Completed ({count})",
+  "@completedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sentProposals": "Sent proposals",
+  "proposalsReceivedCount": "{count, plural, =1{1 received proposal} other{{count} received proposals}}",
+  "@proposalsReceivedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proposalsSentCount": "{count, plural, =1{1 sent proposal} other{{count} sent proposals}}",
+  "@proposalsSentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proposalAcceptedSuccess": "Proposal accepted successfully!",
+  "proposalRejected": "Proposal rejected.",
+  "errorAcceptingProposal": "Error accepting proposal",
+  "errorAcceptingProposalMessage": "Could not accept proposal. Please try again.",
+  "errorRejectingProposal": "Error rejecting proposal",
+  "errorRejectingProposalMessage": "Could not reject proposal. Please try again.",
+  "chatInDevelopment": "Chat in development",
+  "timeframe": "Within {time} {unit}",
+  "@timeframe": {
+    "placeholders": {
+      "time": {
+        "type": "int"
+      },
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+
+  "reject": "Reject",
+  "accept": "Accept",
+  "proposalAcceptedBadge": "Proposal Accepted",
+  "paymentAction": "Make payment to start service",
+  "paymentReleasedBadge": "Payment released to freelancer ✓",
+  "paymentHeldBadge": "Payment made! Release after service completion",
+  "makePayment": "Make Payment",
+  "chatWithFreelancer": "Chat with Freelancer",
+  "chat": "Chat",
+  "releasePayment": "Release Payment",
+  "paidBadge": "PAID",
+  "released": "Released",
+  "retained": "Retained",
+  "paymentReleased": "Payment Released",
+  "paymentRetained": "Payment Retained",
+  "waitingConfirmation": "Waiting confirmation",
+  "serviceLabel": "Service:",
+  "pix": "PIX",
+  "creditCard": "Credit Card",
+  "notInformed": "Not informed",
+  "dateNotAvailable": "Date not available",
+  "invalidDate": "Invalid date",
+  "atTime": "at",
+  "accessMyAccount": "Access my account",
+  "createAccount": "Create new account",
+  "back": "Back",
+  "welcomeBackTitle": "Welcome back\nto TrabalheJá",
+  "chooseLoginMethod": "Choose your login method.",
+  "loginWithEmail": "Login with email and password",
+  "loginWithFacebook": "Login with Facebook",
+  "loginWithGoogle": "Login with Google",
+  "dontHaveAccount": "I don't have an account",
+  "fillFieldsCorrectly": "Please fill all fields correctly.",
+  "loginErrorGeneric": "Error logging in. Please try again.",
+  "invalidCredentials": "Invalid email or password.",
+  "emailNotConfirmed": "Please confirm your email before logging in.",
+  "tooManyRequests": "Too many attempts. Please wait a moment and try again.",
+  "enterEmail": "Enter your email",
+  "emailHint": "Email",
+  "invalidEmail": "Please enter a valid email",
+  "enterPassword": "Enter your password",
+  "passwordHint": "Password",
+  "passwordMinLength": "Password must be at least 6 characters",
+  "loginButton": "Login",
+  "forgotPassword": "Forgot my password",
+  "createAccountTitle": "First, let's create\nyour account",
+  "continueButton": "Continue",
+  "alreadyHaveAccount": "I already have an account",
+  "termsText1": "By signing up, you agree to our ",
+  "termsLink": "Terms and Conditions",
+  "termsText2": " and ",
+  "privacyLink": "Privacy Policy",
+  "termsText3": ".",
+  "createAccountError": "Error creating account. Please try again.",
+  "emailAlreadyRegistered": "This email is already registered.",
+  "invalidEmailOrPassword": "Invalid email or password.",
+  "createAccountErrorDetails": "Error creating account: {error}",
+  "@createAccountErrorDetails": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "signupDetailsTitle": "Lastly, we need\na few more details",
+  "signupDetailsSubtitle": "We need some extra security and contact details.",
+  "enterPhone": "What is your phone number?",
+  "phoneHint": "(00) 00000-0000",
+  "enterPhoneError": "Please enter your phone number",
+  "incompletePhone": "Incomplete phone number",
+  "choosePassword": "Choose a password",
+  "enterPasswordHint": "Enter a password",
+  "confirmPassword": "Confirm password",
+  "reenterPassword": "Enter password again",
+  "confirmPasswordError": "Please confirm your password",
+  "passwordsDoNotMatch": "Passwords do not match"
+}
