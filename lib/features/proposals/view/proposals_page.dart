@@ -14,6 +14,9 @@ import 'package:trabalheja/features/proposals/widgets/sent_proposal_card.dart' s
 import 'package:trabalheja/features/proposals/widgets/paid_proposal_card.dart';
 import 'package:trabalheja/features/payment/view/create_payment_page_improved.dart';
 import 'package:trabalheja/features/payment/view/release_payment_page.dart';
+import 'package:trabalheja/core/widgets/skeleton_loader.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class ProposalsPage extends StatefulWidget {
   const ProposalsPage({super.key});
@@ -30,10 +33,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
   bool _isLoading = true;
   bool _isLoadingProposals = false;
   
-  // Filtros para propostas
-  // [Pendentes, Aceitas, Rejeitadas, Pagas]
-  // Por padrão, mostrar todas (nenhum filtro selecionado)
-  List<bool> _selectedFilters = [false, false, false, false];
+  // Tab selection
+  int _currentTabIndex = 0;
   
   String? get _accountType => _profileData?['account_type'] as String?;
   bool get _isClient => _accountType == 'client';
@@ -421,34 +422,27 @@ class _ProposalsPageState extends State<ProposalsPage> {
     };
   }
 
+  /// Filtra propostas baseado no índice da tab selecionada
   List<Map<String, dynamic>> _getFilteredProposals() {
-    // Filtros: [Pendentes, Aceitas, Rejeitadas, Pagas]
-    final showPending = _selectedFilters[0];
-    final showAccepted = _selectedFilters[1];
-    final showRejected = _selectedFilters[2];
-    final showPaid = _selectedFilters[3];
+    // Filter based on tab index
+    // 0: Todas, 1: Pendentes, 2: Aceitas, 3: Rejeitadas/Pagas (Concluídas)
     
-    // Se nenhum filtro estiver selecionado, mostrar todas
-    if (!showPending && !showAccepted && !showRejected && !showPaid) {
-      return _proposals;
-    }
-    
-    // Filtrar propostas baseado nos filtros selecionados
     return _proposals.where((p) {
       final status = p['status'] as String?;
       final paymentStatus = p['payment_status'] as String?;
       
-      // Proposta está paga
-      if (paymentStatus == 'paid') {
-        return showPaid;
+      switch (_currentTabIndex) {
+        case 0: // Todas
+          return true;
+        case 1: // Pendentes
+          return status == 'pending' && paymentStatus != 'paid';
+        case 2: // Aceitas
+          return status == 'accepted' && paymentStatus != 'paid';
+        case 3: // Concluídas
+          return status == 'rejected' || paymentStatus == 'paid';
+        default:
+          return true;
       }
-      
-      // Proposta não está paga, verificar status da proposta
-      if (status == 'pending' && showPending) return true;
-      if (status == 'accepted' && showAccepted) return true;
-      if (status == 'rejected' && showRejected) return true;
-      
-      return false;
     }).toList();
   }
 
@@ -483,8 +477,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Proposta aceita com sucesso!'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.proposalAcceptedSuccess),
             backgroundColor: Colors.green,
           ),
         );
@@ -493,8 +487,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
       if (mounted) {
         ErrorModal.show(
           context,
-          title: 'Erro ao aceitar proposta',
-          message: 'Não foi possível aceitar a proposta. Tente novamente.',
+          title: AppLocalizations.of(context)!.errorAcceptingProposal,
+          message: AppLocalizations.of(context)!.errorAcceptingProposalMessage,
         );
       }
     }
@@ -549,8 +543,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Proposta rejeitada.'),
+           SnackBar(
+            content: Text(AppLocalizations.of(context)!.proposalRejected),
             backgroundColor: Colors.orange,
           ),
         );
@@ -559,8 +553,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
       if (mounted) {
         ErrorModal.show(
           context,
-          title: 'Erro ao rejeitar proposta',
-          message: 'Não foi possível rejeitar a proposta. Tente novamente.',
+          title: AppLocalizations.of(context)!.errorRejectingProposal,
+          message: AppLocalizations.of(context)!.errorRejectingProposalMessage,
         );
       }
     }
@@ -599,21 +593,22 @@ class _ProposalsPageState extends State<ProposalsPage> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColorsPrimary.primary50,
-        body: Center(
-          child: CircularProgressIndicator(
-            color: AppColorsPrimary.primary700,
-          ),
+        body: const SafeArea(
+          child: CardSkeletonLoader(itemCount: 5),
         ),
       );
     }
 
     final filteredProposals = _getFilteredProposals();
-    final title = _isClient ? 'Propostas recebidas' : 'Propostas enviadas';
+    final counts = _getProposalCounts();
+    final title = _isClient ? AppLocalizations.of(context)!.receivedProposals : AppLocalizations.of(context)!.sentProposals;
     final subtitle = _isClient 
-        ? '${_proposals.length} proposta${_proposals.length != 1 ? 's' : ''} recebida${_proposals.length != 1 ? 's' : ''}'
-        : '${_proposals.length} proposta${_proposals.length != 1 ? 's' : ''} enviada${_proposals.length != 1 ? 's' : ''}';
+        ? AppLocalizations.of(context)!.proposalsReceivedCount(_proposals.length)
+        : AppLocalizations.of(context)!.proposalsSentCount(_proposals.length);
 
-    return Scaffold(
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
       backgroundColor: AppColorsPrimary.primary50,
       appBar: AppBar(
         elevation: 0,
@@ -644,108 +639,58 @@ class _ProposalsPageState extends State<ProposalsPage> {
             ],
           ),
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.spacing24),
+            decoration: BoxDecoration(
+              color: AppColorsNeutral.neutral100,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: TabBar(
+              onTap: (index) {
+                setState(() {
+                  _currentTabIndex = index;
+                });
+              },
+              indicator: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                color: AppColorsPrimary.primary900,
+              ),
+              labelColor: AppColorsNeutral.neutral0,
+              unselectedLabelColor: AppColorsNeutral.neutral600,
+              labelStyle: AppTypography.captionBold,
+              unselectedLabelStyle: AppTypography.captionMedium,
+              indicatorSize: TabBarIndicatorSize.tab,
+              overlayColor: MaterialStateProperty.all(Colors.transparent),
+              tabs: [
+                Tab(text: AppLocalizations.of(context)!.all),
+                Tab(text: counts['pending'] != 0 ? AppLocalizations.of(context)!.pendingCount(counts['pending']!) : AppLocalizations.of(context)!.pending),
+                Tab(text: counts['accepted'] != 0 ? AppLocalizations.of(context)!.acceptedCount(counts['accepted']!) : AppLocalizations.of(context)!.accepted),
+                Tab(text: (counts['rejected']! + counts['paid']!) != 0 
+                  ? AppLocalizations.of(context)!.completedCount(counts['rejected']! + counts['paid']!) 
+                  : AppLocalizations.of(context)!.completed),
+              ],
+            ),
+          ),
+        ),
       ),
       body: _isClient
           ? _buildReceivedProposals(filteredProposals)
           : _buildSentProposals(filteredProposals),
+    ),
     );
   }
 
   Widget _buildReceivedProposals(List<Map<String, dynamic>> proposals) {
-    final counts = _getProposalCounts();
-    
     return Column(
       children: [
-        // Filtros com contadores
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.spacing24,
-            vertical: AppSpacing.spacing16,
-          ),
-          child: Column(
-            children: [
-              // Primeira linha: Pendentes e Aceitas
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Pendentes',
-                      count: counts['pending'] ?? 0,
-                      icon: Icons.schedule,
-                      isSelected: _selectedFilters[0],
-                      onTap: () => setState(() {
-                        _selectedFilters[0] = !_selectedFilters[0];
-                      }),
-                      color: Colors.orange,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.spacing12),
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Aceitas',
-                      count: counts['accepted'] ?? 0,
-                      icon: Icons.check_circle,
-                      isSelected: _selectedFilters[1],
-                      onTap: () => setState(() {
-                        _selectedFilters[1] = !_selectedFilters[1];
-                      }),
-                      color: AppColorsSuccess.success600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.spacing12),
-              // Segunda linha: Rejeitadas e Pagas
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Rejeitadas',
-                      count: counts['rejected'] ?? 0,
-                      icon: Icons.cancel,
-                      isSelected: _selectedFilters[2],
-                      onTap: () => setState(() {
-                        _selectedFilters[2] = !_selectedFilters[2];
-                      }),
-                      color: AppColorsError.error600,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.spacing12),
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Pagas',
-                      count: counts['paid'] ?? 0,
-                      icon: Icons.verified,
-                      isSelected: _selectedFilters[3],
-                      onTap: () => setState(() {
-                        _selectedFilters[3] = !_selectedFilters[3];
-                      }),
-                      color: Colors.purple.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
         // Lista de propostas
         Expanded(
           child: _isLoadingProposals
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColorsPrimary.primary700,
-                  ),
-                )
+              ? const CardSkeletonLoader(itemCount: 4)
               : proposals.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Nenhuma proposta encontrada',
-                        style: AppTypography.contentRegular.copyWith(
-                          color: AppColorsNeutral.neutral500,
-                        ),
-                      ),
-                    )
+                  ? _buildEmptyState()
                   : RefreshIndicator(
                       onRefresh: _loadProposals,
                       color: AppColorsPrimary.primary700,
@@ -789,8 +734,8 @@ class _ProposalsPageState extends State<ProposalsPage> {
                               onChat: () {
                                 // TODO: Navegar para chat
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Chat em desenvolvimento'),
+                                   SnackBar(
+                                    content: Text(AppLocalizations.of(context)!.chatInDevelopment),
                                   ),
                                 );
                               },
@@ -811,7 +756,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                   name: freelancerName,
                                   location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                                   price: _formatCurrency(price.toDouble()),
-                                  timeframe: 'Em até $availabilityValue $availabilityUnit',
+                                  timeframe: AppLocalizations.of(context)!.timeframe(availabilityValue, availabilityUnit),
                                   hasPaidPayment: hasPaidPayment,
                                   paymentReleaseStatus: releaseStatus,
                                   onPay: () {
@@ -832,9 +777,9 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                   onChat: hasPaidPayment ? () {
                                     // TODO: Navegar para chat
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Chat em desenvolvimento'),
-                                      ),
+                                  SnackBar(
+                                    content: Text(AppLocalizations.of(context)!.chatInDevelopment),
+                                  ),
                                     );
                                   } : null,
                                   onReleasePayment: (hasPaidPayment && releaseStatus == 'retained') ? () {
@@ -884,96 +829,14 @@ class _ProposalsPageState extends State<ProposalsPage> {
     
     return Column(
       children: [
-        // Filtros com contadores (mesma UI que cliente)
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.spacing24,
-            vertical: AppSpacing.spacing16,
-          ),
-          child: Column(
-            children: [
-              // Primeira linha: Pendentes e Aceitas
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Pendentes',
-                      count: counts['pending'] ?? 0,
-                      icon: Icons.schedule,
-                      isSelected: _selectedFilters[0],
-                      onTap: () => setState(() {
-                        _selectedFilters[0] = !_selectedFilters[0];
-                      }),
-                      color: Colors.orange,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.spacing12),
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Aceitas',
-                      count: counts['accepted'] ?? 0,
-                      icon: Icons.check_circle,
-                      isSelected: _selectedFilters[1],
-                      onTap: () => setState(() {
-                        _selectedFilters[1] = !_selectedFilters[1];
-                      }),
-                      color: AppColorsSuccess.success600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.spacing12),
-              // Segunda linha: Rejeitadas e Pagas
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Rejeitadas',
-                      count: counts['rejected'] ?? 0,
-                      icon: Icons.cancel,
-                      isSelected: _selectedFilters[2],
-                      onTap: () => setState(() {
-                        _selectedFilters[2] = !_selectedFilters[2];
-                      }),
-                      color: AppColorsError.error600,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.spacing12),
-                  Expanded(
-                    child: _buildFilterChip(
-                      text: 'Pagas',
-                      count: counts['paid'] ?? 0,
-                      icon: Icons.verified,
-                      isSelected: _selectedFilters[3],
-                      onTap: () => setState(() {
-                        _selectedFilters[3] = !_selectedFilters[3];
-                      }),
-                      color: Colors.purple.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+
         
         // Lista de propostas
         Expanded(
           child: _isLoadingProposals
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColorsPrimary.primary700,
-                  ),
-                )
+              ? const CardSkeletonLoader(itemCount: 4)
               : proposals.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Nenhuma proposta encontrada',
-                        style: AppTypography.contentRegular.copyWith(
-                          color: AppColorsNeutral.neutral500,
-                        ),
-                      ),
-                    )
+                  ? _buildEmptyState()
                   : RefreshIndicator(
                       onRefresh: _loadProposals,
                       color: AppColorsPrimary.primary700,
@@ -1040,64 +903,39 @@ class _ProposalsPageState extends State<ProposalsPage> {
     );
   }
 
-  Widget _buildFilterChip({
-    required String text,
-    required int count,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: isSelected ? color.withOpacity(0.1) : AppColorsNeutral.neutral0,
-        foregroundColor: isSelected ? color : AppColorsNeutral.neutral600,
-        side: BorderSide(
-          color: isSelected ? color.withOpacity(0.5) : AppColorsNeutral.neutral200,
-          width: isSelected ? 2 : 1,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.radius8),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.spacing12,
-          vertical: AppSpacing.spacing12,
-        ),
-      ),
-      child: Row(
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: isSelected ? color : AppColorsNeutral.neutral500,
-          ),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              text,
-              style: AppTypography.contentMedium.copyWith(
-                color: isSelected ? color : AppColorsNeutral.neutral600,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 13,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 4),
-          // Contador
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.all(AppSpacing.spacing24),
             decoration: BoxDecoration(
-              color: isSelected ? color : AppColorsNeutral.neutral300,
-              borderRadius: AppRadius.radius4,
+              color: AppColorsNeutral.neutral100,
+              shape: BoxShape.circle,
             ),
-            child: Text(
-              '$count',
-              style: AppTypography.captionBold.copyWith(
-                color: isSelected ? Colors.white : AppColorsNeutral.neutral700,
-                fontSize: 11,
+            child: SvgPicture.asset(
+              'assets/icons/document.svg',
+              height: 48,
+              colorFilter: ColorFilter.mode(
+                AppColorsNeutral.neutral400,
+                BlendMode.srcIn,
               ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.spacing16),
+          Text(
+            'Nenhuma proposta encontrada',
+            style: AppTypography.heading3.copyWith(
+              color: AppColorsNeutral.neutral800,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.spacing8),
+          Text(
+            'Você não tem propostas nesta categoria.',
+            style: AppTypography.contentRegular.copyWith(
+              color: AppColorsNeutral.neutral500,
             ),
           ),
         ],

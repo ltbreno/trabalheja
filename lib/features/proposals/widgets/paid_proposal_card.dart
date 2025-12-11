@@ -5,6 +5,7 @@ import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/proposals/widgets/proposal_info_tile.dart';
 import 'package:intl/intl.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 /// Card para propostas pagas (com botão de chat)
 class PaidProposalCard extends StatelessWidget {
@@ -29,20 +30,20 @@ class PaidProposalCard extends StatelessWidget {
     this.onChat,
   });
 
-  String _formatDate(String? isoDate) {
-    if (isoDate == null) return 'Data não disponível';
+  String _formatDate(BuildContext context, String? isoDate) {
+    if (isoDate == null) return AppLocalizations.of(context)!.dateNotAvailable;
     try {
       final date = DateTime.parse(isoDate);
-      return DateFormat('dd/MM/yyyy \'às\' HH:mm').format(date);
+      return DateFormat('dd/MM/yyyy \'${AppLocalizations.of(context)!.atTime}\' HH:mm').format(date);
     } catch (e) {
-      return 'Data inválida';
+      return AppLocalizations.of(context)!.invalidDate;
     }
   }
 
-  String _getPaymentMethodLabel() {
-    if (paymentMethod == 'pix') return 'PIX';
-    if (paymentMethod == 'credit_card') return 'Cartão de Crédito';
-    return 'Não informado';
+  String _getPaymentMethodLabel(BuildContext context) {
+    if (paymentMethod == 'pix') return AppLocalizations.of(context)!.pix;
+    if (paymentMethod == 'credit_card') return AppLocalizations.of(context)!.creditCard;
+    return AppLocalizations.of(context)!.notInformed;
   }
 
   IconData _getPaymentMethodIcon() {
@@ -51,10 +52,10 @@ class PaidProposalCard extends StatelessWidget {
     return Icons.payment;
   }
 
-  String _getReleaseStatusLabel() {
-    if (releaseStatus == 'released') return 'Pagamento Liberado';
-    if (releaseStatus == 'retained') return 'Pagamento Retido';
-    return 'Aguardando confirmação';
+  String _getReleaseStatusLabel(BuildContext context) {
+    if (releaseStatus == 'released') return AppLocalizations.of(context)!.paymentReleased;
+    if (releaseStatus == 'retained') return AppLocalizations.of(context)!.paymentRetained;
+    return AppLocalizations.of(context)!.waitingConfirmation;
   }
 
   Color _getReleaseStatusColor() {
@@ -104,7 +105,7 @@ class PaidProposalCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'PAGA',
+                      AppLocalizations.of(context)!.paidBadge,
                       style: AppTypography.captionBold.copyWith(
                         color: Colors.purple.shade700,
                       ),
@@ -129,7 +130,7 @@ class PaidProposalCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      releaseStatus == 'released' ? 'Liberado' : 'Retido',
+                      releaseStatus == 'released' ? AppLocalizations.of(context)!.released : AppLocalizations.of(context)!.retained,
                       style: AppTypography.captionBold.copyWith(
                         color: _getReleaseStatusColor(),
                         fontSize: 11,
@@ -171,7 +172,7 @@ class PaidProposalCard extends StatelessWidget {
 
           // Informações do serviço
           Text(
-            'Serviço:',
+            AppLocalizations.of(context)!.serviceLabel,
             style: AppTypography.captionBold.copyWith(
               color: AppColorsNeutral.neutral600,
             ),
@@ -198,7 +199,7 @@ class PaidProposalCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                _getPaymentMethodLabel(),
+                _getPaymentMethodLabel(context),
                 style: AppTypography.contentMedium.copyWith(
                   color: AppColorsPrimary.primary900,
                 ),
@@ -219,9 +220,9 @@ class PaidProposalCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _formatDate(paymentDate),
+                  _formatDate(context, paymentDate),
                   style: AppTypography.contentRegular.copyWith(
-                    color: AppColorsNeutral.neutral700,
+                  color: AppColorsNeutral.neutral700,
                   ),
                 ),
               ),
@@ -252,7 +253,7 @@ class PaidProposalCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _getReleaseStatusLabel(),
+                    _getReleaseStatusLabel(context),
                     style: AppTypography.captionMedium.copyWith(
                       color: _getReleaseStatusColor().withOpacity(0.9),
                     ),
@@ -271,7 +272,7 @@ class PaidProposalCard extends StatelessWidget {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.chat_bubble_outline, size: 20),
                 label: Text(
-                  'Conversar',
+                  AppLocalizations.of(context)!.chat,
                   style: AppTypography.contentBold.copyWith(
                     color: AppColorsNeutral.neutral0,
                   ),

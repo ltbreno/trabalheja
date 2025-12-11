@@ -4,6 +4,7 @@ import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/proposals/widgets/proposal_info_tile.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 /// Card para propostas aceitas (mostra botão de pagamento)
 class AcceptedProposalCard extends StatelessWidget {
@@ -69,7 +70,7 @@ class AcceptedProposalCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Proposta Aceita',
+                  AppLocalizations.of(context)!.proposalAcceptedBadge,
                   style: AppTypography.captionBold.copyWith(
                     color: AppColorsSuccess.success700,
                   ),
@@ -126,7 +127,7 @@ class AcceptedProposalCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _getStatusMessage(),
+                    _getStatusMessage(context),
                     style: AppTypography.captionMedium.copyWith(
                       color: _getStatusColor().withOpacity(0.9),
                     ),
@@ -139,7 +140,7 @@ class AcceptedProposalCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.spacing16),
 
           // Botões de ação
-          _buildCardActions(),
+          _buildCardActions(context),
         ],
       ),
     );
@@ -165,17 +166,17 @@ class AcceptedProposalCard extends StatelessWidget {
     return Icons.check_circle_outline;
   }
 
-  String _getStatusMessage() {
+  String _getStatusMessage(BuildContext context) {
     if (!hasPaidPayment) {
-      return 'Realize o pagamento para iniciar o serviço';
+      return AppLocalizations.of(context)!.paymentAction;
     }
     if (paymentReleaseStatus == 'released') {
-      return 'Pagamento liberado para o freelancer ✓';
+      return AppLocalizations.of(context)!.paymentReleasedBadge;
     }
-    return 'Pagamento realizado! Libere após finalizar o serviço';
+    return AppLocalizations.of(context)!.paymentHeldBadge;
   }
 
-  Widget _buildCardActions() {
+  Widget _buildCardActions(BuildContext context) {
     return Column(
       children: [
         // Se pagamento NÃO foi realizado: Mostrar botão de pagamento
@@ -186,7 +187,7 @@ class AcceptedProposalCard extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.payment, size: 20),
               label: Text(
-                'Realizar Pagamento',
+                AppLocalizations.of(context)!.makePayment,
                 style: AppTypography.contentBold.copyWith(
                   color: AppColorsNeutral.neutral0,
                 ),
@@ -213,7 +214,7 @@ class AcceptedProposalCard extends StatelessWidget {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.chat_bubble_outline, size: 20),
                 label: Text(
-                  'Conversar com Freelancer',
+                  AppLocalizations.of(context)!.chatWithFreelancer,
                   style: AppTypography.contentBold.copyWith(
                     color: AppColorsNeutral.neutral0,
                   ),
@@ -238,7 +239,7 @@ class AcceptedProposalCard extends StatelessWidget {
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.account_balance_wallet, size: 20),
                 label: Text(
-                  'Liberar Pagamento',
+                  AppLocalizations.of(context)!.releasePayment,
                   style: AppTypography.contentBold.copyWith(
                     color: AppColorsPrimary.primary700,
                   ),
@@ -263,7 +264,7 @@ class AcceptedProposalCard extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.chat_bubble_outline, size: 20),
               label: Text(
-                'Conversar com Freelancer',
+                AppLocalizations.of(context)!.chatWithFreelancer,
                 style: AppTypography.contentBold.copyWith(
                   color: AppColorsNeutral.neutral0,
                 ),

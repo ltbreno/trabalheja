@@ -4,7 +4,8 @@ import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
-import 'package:trabalheja/features/proposals/widgets/proposal_info_tile.dart'; // Importa o tile reutilizável
+import 'package:trabalheja/features/proposals/widgets/proposal_info_tile.dart';
+import 'package:trabalheja/l10n/app_localizations.dart';
 
 class ReceivedProposalCard extends StatelessWidget {
   final String name;
@@ -64,13 +65,13 @@ class ReceivedProposalCard extends StatelessWidget {
             text: timeframe,
           ),
           const SizedBox(height: AppSpacing.spacing16),
-          _buildCardActions(),
+          _buildCardActions(context),
         ],
       ),
     );
   }
 
-  Widget _buildCardActions() {
+  Widget _buildCardActions(BuildContext context) {
     return Row(
       children: [
         // Botão Rejeitar
@@ -82,7 +83,7 @@ class ReceivedProposalCard extends StatelessWidget {
               colorFilter: ColorFilter.mode(AppColorsError.error600, BlendMode.srcIn),
             ),
             label: Text(
-              'Rejeitar',
+              AppLocalizations.of(context)!.reject,
               style: AppTypography.contentBold.copyWith(color: AppColorsError.error600),
             ),
             onPressed: onReject,
@@ -104,8 +105,8 @@ class ReceivedProposalCard extends StatelessWidget {
               colorFilter: ColorFilter.mode(AppColorsSuccess.success600, BlendMode.srcIn),
             ),
             label: Text(
-              'Aceitar',
-               style: AppTypography.contentBold.copyWith(color: AppColorsSuccess.success600),
+              AppLocalizations.of(context)!.accept,
+              style: AppTypography.contentBold.copyWith(color: AppColorsSuccess.success600),
             ),
             onPressed: onAccept,
              style: ElevatedButton.styleFrom(
