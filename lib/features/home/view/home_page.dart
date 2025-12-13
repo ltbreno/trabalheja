@@ -247,6 +247,8 @@ class _HomePageState extends State<HomePage> {
             Text(
               displayName,
               style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral900),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -303,7 +305,7 @@ class _HomePageState extends State<HomePage> {
           border: Border.all(color: AppColorsNeutral.neutral100),
           boxShadow: [
             BoxShadow(
-              color: AppColorsNeutral.neutral100.withOpacity(0.5),
+            color: AppColorsNeutral.neutral100.withValues(alpha: 0.5),
               blurRadius: 4,
               offset: const Offset(0, 2),
             )
@@ -325,11 +327,15 @@ class _HomePageState extends State<HomePage> {
                   Text(
                     title,
                     style: AppTypography.highlightBold.copyWith(color: AppColorsNeutral.neutral900),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: AppSpacing.spacing4),
                   Text(
                     subtitle,
                     style: AppTypography.captionRegular.copyWith(color: AppColorsNeutral.neutral600),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
