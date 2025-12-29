@@ -8,6 +8,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/auth/view/welcome_page.dart';
 import 'package:trabalheja/features/auth/view/email_login_page.dart';
+import 'package:trabalheja/features/auth/view/signup_email_page.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -29,9 +30,12 @@ class LoginPage extends StatelessWidget {
             ),
           ),
           onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context); // Ação de voltar padrão
-            }
+            // Retornar para a WelcomePage
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const WelcomePage()),
+              (route) => false,
+            );
           },
         ),
         title: Text(
@@ -114,8 +118,11 @@ class LoginPage extends StatelessWidget {
               // Link "Não tenho uma conta"
               TextButton(
                 onPressed: () {
-                  // TODO: Navegar para tela de Cadastro
-                  print('Ir para Cadastro');
+                  // Navegar para tela de Cadastro
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SignUpEmailPage()),
+                  );
                 },
                 child: Text(
                   'Não tenho uma conta',

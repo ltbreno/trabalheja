@@ -476,7 +476,7 @@ class PagarmeService {
       print('   ${json.encode(requestBody)}');
 
       final response = await http.post(
-        Uri.parse('https://api.pagar.me/core/v5/tokens?appId=pk_test_4Rqd0p3Fp6Ca71D8'),
+        Uri.parse('https://api.pagar.me/core/v5/tokens?appId=$encryptionKey'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

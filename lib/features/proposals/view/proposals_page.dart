@@ -1,4 +1,5 @@
 // lib/features/proposals/view/proposals_page.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +8,9 @@ import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/core/utils/distance_calculator.dart' as distance_util;
+import 'package:trabalheja/core/widgets/empty_state.dart';
 import 'package:trabalheja/core/widgets/error_modal.dart';
+import 'package:trabalheja/core/widgets/skeleton_loader.dart';
 import 'package:trabalheja/features/proposals/widgets/received_proposal_card.dart';
 import 'package:trabalheja/features/proposals/widgets/accepted_proposal_card.dart';
 import 'package:trabalheja/features/proposals/widgets/sent_proposal_card.dart' show SentProposalCard, ProposalStatus;
@@ -29,10 +32,21 @@ class _ProposalsPageState extends State<ProposalsPage> {
   List<Map<String, dynamic>> _proposals = [];
   bool _isLoading = true;
   bool _isLoadingProposals = false;
+  final Map<String, Future<Map<String, dynamic>?>> _paymentFutureCache = {};
+
+  void _logEvent(
+    String event, {
+    Map<String, dynamic>? data,
+    Object? error,
+  }) {
+    final payload = <String, dynamic>{
+      'event': event,
+      if (data != null) ...{'data': data},
+      if (error != null) 'error': error.toString(),
+    };
+    print('📍proposals:${jsonEncode(payload)}');
+  }
   
-  // Filtros para propostas
-  // [Pendentes, Aceitas, Rejeitadas, Pagas]
-  // Por padrão, mostrar todas (nenhum filtro selecionado)
   List<bool> _selectedFilters = [false, false, false, false];
   
   String? get _accountType => _profileData?['account_type'] as String?;
@@ -69,6 +83,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
       });
     } catch (e) {
       print('Erro ao carregar perfil: $e');
+      _logEvent('load_profile_error', error: e);
       setState(() => _isLoading = false);
     }
   }
@@ -90,17 +105,23 @@ class _ProposalsPageState extends State<ProposalsPage> {
       List<Map<String, dynamic>> proposals = [];
 
       if (_isClient) {
-        // Para clientes: buscar propostas recebidas (propostas enviadas para seus serviços)
         proposals = await _loadReceivedProposals(user.id);
         print('📋 [ProposalsPage] Propostas recebidas carregadas: ${proposals.length}');
         for (var p in proposals) {
           print('   - Proposta ID: ${p['id']}, Status: ${p['status']}, Service Request: ${p['service_request_id']}');
         }
       } else if (_isFreelancer) {
-        // Para freelancers: buscar propostas enviadas (propostas que ele enviou)
         proposals = await _loadSentProposals(user.id);
         print('📋 [ProposalsPage] Propostas enviadas carregadas: ${proposals.length}');
       }
+
+      _logEvent(
+        'proposals_loaded',
+        data: {
+          'count': proposals.length,
+          'accountType': _accountType,
+        },
+      );
 
       setState(() {
         _proposals = proposals;
@@ -109,6 +130,19 @@ class _ProposalsPageState extends State<ProposalsPage> {
       });
     } catch (e) {
       print('Erro ao carregar propostas: $e');
+      if (mounted) {
+        ErrorModal.show(
+          context,
+          title: 'Erro ao carregar',
+          message: 'Não foi possível carregar as propostas. Tente novamente.',
+        );
+      }
+      final userId = _supabase.auth.currentUser?.id;
+      _logEvent(
+        'load_proposals_error',
+        error: e,
+        data: {'userId': userId},
+      );
       setState(() {
         _proposals = [];
         _isLoading = false;
@@ -117,15 +151,15 @@ class _ProposalsPageState extends State<ProposalsPage> {
     }
   }
 
-  /// Verifica se existe um pagamento aprovado para a proposta
-  /// Agora usa a VIEW proposals_with_payment_status
   Future<Map<String, dynamic>?> _getPaymentData(String proposalId) async {
     try {
-      final proposal = await _supabase
+      final result = await _supabase
           .from('proposals_with_payment_status')
           .select('payment_status, payment_method')
           .eq('proposal_id', proposalId)
-          .maybeSingle();
+          .limit(1);
+      
+      final proposal = result.isNotEmpty ? result.first : null;
       
       if (proposal != null && proposal['payment_status'] == 'paid') {
         return {
@@ -142,8 +176,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   Future<List<Map<String, dynamic>>> _loadReceivedProposals(String clientId) async {
-    // Buscar propostas onde o service_request pertence ao cliente
-    // Primeiro, buscar os service_requests do cliente
     final serviceRequests = await _supabase
         .from('service_requests')
         .select('id')
@@ -153,92 +185,83 @@ class _ProposalsPageState extends State<ProposalsPage> {
       return [];
     }
     
-    final serviceRequestIds = (serviceRequests as List)
+    final serviceRequestIds = (serviceRequests as List<dynamic>)
         .map((sr) => sr['id'] as String)
         .toList();
     
-    // Buscar todas as propostas (incluindo pagas)
-    List<Map<String, dynamic>> allProposals = [];
+    final proposalsResponse = await _supabase
+        .from('proposals')
+        .select('''
+          id,
+          service_request_id,
+          freelancer_id,
+          proposed_price,
+          availability_value,
+          availability_unit,
+          status,
+          created_at,
+          service_requests (
+            id,
+            service_description,
+            service_latitude,
+            service_longitude,
+            budget,
+            deadline_hours,
+            client_id
+          ),
+          profiles:freelancer_id (
+            id,
+            full_name,
+            profile_picture_url,
+            service_latitude,
+            service_longitude
+          )
+        ''')
+        .inFilter('service_request_id', serviceRequestIds);
     
-    for (var serviceRequestId in serviceRequestIds) {
-      final proposalsForService = await _supabase
-          .from('proposals')
-          .select('id')
-          .eq('service_request_id', serviceRequestId);
-      
-      for (var proposal in proposalsForService) {
-        final proposalId = proposal['id'] as String;
-        
-        // Verificar status na VIEW (SEM pagarme_order_id)
-        final status = await _supabase
+    if (proposalsResponse.isEmpty) {
+      return [];
+    }
+    
+    final allProposals = proposalsResponse.cast<Map<String, dynamic>>();
+    final proposalIds = allProposals.map((p) => p['id'] as String).toList();
+    
+    final paymentStatuses = proposalIds.isEmpty
+        ? <Map<String, dynamic>>[]
+        : await _supabase
             .from('proposals_with_payment_status')
-            .select('payment_status, payment_method')
-            .eq('proposal_id', proposalId)
-            .maybeSingle();
-        
-        final paymentStatus = status?['payment_status'] as String?;
-        
-        // Buscar dados completos da proposta
-        final fullProposal = await _supabase
-            .from('proposals')
-            .select('''
-              *,
-              service_requests (
-                id,
-                service_description,
-                service_latitude,
-                service_longitude,
-                budget,
-                deadline_hours,
-                client_id
-              ),
-              profiles!freelancer_id (
-                id,
-                full_name,
-                profile_picture_url,
-                service_latitude,
-                service_longitude
-              )
-            ''')
-            .eq('id', proposalId)
-            .maybeSingle();
-        
-        if (fullProposal != null) {
-          // Buscar dados completos do pagamento se a proposta está paga
-          Map<String, dynamic>? paymentDetails;
-          if (paymentStatus == 'paid') {
-            paymentDetails = await _supabase
-                .from('payments')
-                .select('*')
-                .eq('proposal_id', proposalId)
-                .maybeSingle();
-          }
-          
-          allProposals.add({
-            ...fullProposal,
-            'payment_status': paymentStatus,
-            'payment_method': status?['payment_method'],
-            if (paymentDetails != null) 'payment_details': paymentDetails,
-          });
-        }
-      }
-    }
+            .select('proposal_id, payment_status, payment_method')
+            .inFilter('proposal_id', proposalIds);
     
-    final statusMap = <String, Map<String, dynamic>>{};
-    for (var proposal in allProposals) {
-      statusMap[proposal['id'] as String] = {
-        'payment_status': proposal['payment_status'],
-        'payment_method': proposal['payment_method'],
-      };
-    }
-
+    final statusMap = <String, Map<String, dynamic>>{
+      for (final status in paymentStatuses)
+        status['proposal_id'] as String: Map<String, dynamic>.from(status),
+    };
+    
+    final paidIds = statusMap.entries
+        .where((entry) => entry.value['payment_status'] == 'paid')
+        .map((entry) => entry.key)
+        .toList();
+    
+    final paymentDetailsList = paidIds.isEmpty
+        ? <Map<String, dynamic>>[]
+        : await _supabase
+            .from('payments')
+            .select('*')
+            .inFilter('proposal_id', paidIds);
+    
+    final paymentDetailsMap = <String, Map<String, dynamic>>{
+      for (final detail in paymentDetailsList)
+        detail['proposal_id'] as String: Map<String, dynamic>.from(detail),
+    };
+    
     final List<Map<String, dynamic>> enrichedProposals = [];
 
     for (var proposal in allProposals) {
+      final status = statusMap[proposal['id'] as String];
       final serviceRequest = proposal['service_requests'] as Map<String, dynamic>;
       final freelancer = proposal['profiles'] as Map<String, dynamic>?;
       
-      // Calcular distância entre freelancer e serviço
       double? distance;
       if (freelancer != null) {
         final freelancerLat = freelancer['service_latitude'] as double?;
@@ -257,11 +280,13 @@ class _ProposalsPageState extends State<ProposalsPage> {
 
       enrichedProposals.add({
         ...proposal,
+        'payment_status': status?['payment_status'],
+        'payment_method': status?['payment_method'],
+        if (paymentDetailsMap.containsKey(proposal['id'])) 'payment_details': paymentDetailsMap[proposal['id']],
         'distance': distance,
       });
     }
 
-    // Ordenar por data de criação (mais recentes primeiro)
     enrichedProposals.sort((a, b) {
       final aDate = a['created_at'] as String? ?? '';
       final bDate = b['created_at'] as String? ?? '';
@@ -272,94 +297,84 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   Future<List<Map<String, dynamic>>> _loadSentProposals(String freelancerId) async {
-    // Buscar todas as propostas (incluindo pagas)
-    final allProposals = await _supabase
+    final proposalsResponse = await _supabase
         .from('proposals')
-        .select('id')
+        .select('''
+          id,
+          service_request_id,
+          freelancer_id,
+          proposed_price,
+          availability_value,
+          availability_unit,
+          status,
+          created_at,
+          service_requests (
+            id,
+            service_description,
+            service_latitude,
+            service_longitude,
+            budget,
+            deadline_hours,
+            client_id,
+            profiles:client_id (
+              id,
+              full_name,
+              profile_picture_url,
+              service_latitude,
+              service_longitude
+            )
+          )
+        ''')
         .eq('freelancer_id', freelancerId);
     
-    if (allProposals.isEmpty) {
+    if (proposalsResponse.isEmpty) {
       return [];
     }
     
-    final validProposals = <Map<String, dynamic>>[];
+    final allProposals = proposalsResponse.cast<Map<String, dynamic>>();
+    final proposalIds = allProposals.map((p) => p['id'] as String).toList();
     
-    for (var proposal in allProposals) {
-      final proposalId = proposal['id'] as String;
-      
-      // Verificar status na VIEW (SEM pagarme_order_id)
-      final status = await _supabase
-          .from('proposals_with_payment_status')
-          .select('payment_status, payment_method')
-          .eq('proposal_id', proposalId)
-          .maybeSingle();
-      
-      final paymentStatus = status?['payment_status'] as String?;
-      
-      // Buscar dados completos
-      final fullProposal = await _supabase
-          .from('proposals')
-          .select('''
-            *,
-            service_requests (
-              id,
-              service_description,
-              service_latitude,
-              service_longitude,
-              budget,
-              deadline_hours,
-              client_id,
-              profiles!client_id (
-                id,
-                full_name,
-                profile_picture_url,
-                service_latitude,
-                service_longitude
-              )
-            )
-          ''')
-          .eq('id', proposalId)
-          .maybeSingle();
-      
-      if (fullProposal != null) {
-        // Buscar dados completos do pagamento se a proposta está paga
-        Map<String, dynamic>? paymentDetails;
-        if (paymentStatus == 'paid') {
-          paymentDetails = await _supabase
-              .from('payments')
-              .select('*')
-              .eq('proposal_id', proposalId)
-              .maybeSingle();
-        }
-        
-        validProposals.add({
-          ...fullProposal,
-          'payment_status': paymentStatus,
-          'payment_method': status?['payment_method'],
-          if (paymentDetails != null) 'payment_details': paymentDetails,
-        });
-      }
-    }
+    final paymentStatuses = proposalIds.isEmpty
+        ? <Map<String, dynamic>>[]
+        : await _supabase
+            .from('proposals_with_payment_status')
+            .select('proposal_id, payment_status, payment_method')
+            .inFilter('proposal_id', proposalIds);
     
-    if (validProposals.isEmpty) {
-      return [];
-    }
+    final statusMap = <String, Map<String, dynamic>>{
+      for (final status in paymentStatuses)
+        status['proposal_id'] as String: Map<String, dynamic>.from(status),
+    };
     
-    // Ordenar por data
-    validProposals.sort((a, b) {
+    final paidIds = statusMap.entries
+        .where((entry) => entry.value['payment_status'] == 'paid')
+        .map((entry) => entry.key)
+        .toList();
+    
+    final paymentDetailsList = paidIds.isEmpty
+        ? <Map<String, dynamic>>[]
+        : await _supabase
+            .from('payments')
+            .select('*')
+            .inFilter('proposal_id', paidIds);
+    
+    final paymentDetailsMap = <String, Map<String, dynamic>>{
+      for (final detail in paymentDetailsList)
+        detail['proposal_id'] as String: Map<String, dynamic>.from(detail),
+    };
+    
+    allProposals.sort((a, b) {
       final aDate = a['created_at'] as String? ?? '';
       final bDate = b['created_at'] as String? ?? '';
       return bDate.compareTo(aDate);
     });
     
-    final proposals = validProposals;
-
     final List<Map<String, dynamic>> enrichedProposals = [];
 
-    for (var proposal in proposals) {
+    for (var proposal in allProposals) {
+      final status = statusMap[proposal['id'] as String];
       final serviceRequest = proposal['service_requests'] as Map<String, dynamic>?;
       
-      // Calcular distância entre cliente e serviço
       double? distance;
       if (serviceRequest != null) {
         final client = serviceRequest['profiles'] as Map<String, dynamic>?;
@@ -368,7 +383,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
         final serviceLat = serviceRequest['service_latitude'] as double?;
         final serviceLng = serviceRequest['service_longitude'] as double?;
         
-        // Se cliente não tem coordenadas, usar coordenadas do serviço
         if (serviceLat != null && serviceLng != null) {
           if (clientLat != null && clientLng != null) {
             distance = distance_util.AppDistanceCalculator.calculateDistanceInMeters(
@@ -376,7 +390,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
               LatLng(serviceLat, serviceLng),
             );
           } else {
-            // Se não há coordenadas do cliente, distância é 0 (serviço no mesmo local)
             distance = 0.0;
           }
         }
@@ -384,6 +397,9 @@ class _ProposalsPageState extends State<ProposalsPage> {
 
       enrichedProposals.add({
         ...proposal,
+        'payment_status': status?['payment_status'],
+        'payment_method': status?['payment_method'],
+        if (paymentDetailsMap.containsKey(proposal['id'])) 'payment_details': paymentDetailsMap[proposal['id']],
         'distance': distance,
       });
     }
@@ -391,7 +407,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
     return enrichedProposals;
   }
 
-  /// Conta propostas por status para exibir nos filtros
   Map<String, int> _getProposalCounts() {
     int pending = 0;
     int accepted = 0;
@@ -422,28 +437,23 @@ class _ProposalsPageState extends State<ProposalsPage> {
   }
 
   List<Map<String, dynamic>> _getFilteredProposals() {
-    // Filtros: [Pendentes, Aceitas, Rejeitadas, Pagas]
     final showPending = _selectedFilters[0];
     final showAccepted = _selectedFilters[1];
     final showRejected = _selectedFilters[2];
     final showPaid = _selectedFilters[3];
     
-    // Se nenhum filtro estiver selecionado, mostrar todas
     if (!showPending && !showAccepted && !showRejected && !showPaid) {
       return _proposals;
     }
     
-    // Filtrar propostas baseado nos filtros selecionados
     return _proposals.where((p) {
       final status = p['status'] as String?;
       final paymentStatus = p['payment_status'] as String?;
       
-      // Proposta está paga
       if (paymentStatus == 'paid') {
         return showPaid;
       }
       
-      // Proposta não está paga, verificar status da proposta
       if (status == 'pending' && showPending) return true;
       if (status == 'accepted' && showAccepted) return true;
       if (status == 'rejected' && showRejected) return true;
@@ -459,7 +469,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
           .update({'status': 'accepted'})
           .eq('id', proposalId);
 
-      // Rejeitar outras propostas do mesmo serviço
       final proposal = _proposals.firstWhere((p) => p['id'] == proposalId);
       final serviceRequestId = proposal['service_request_id'] as String;
 
@@ -469,16 +478,13 @@ class _ProposalsPageState extends State<ProposalsPage> {
           .eq('service_request_id', serviceRequestId)
           .neq('id', proposalId);
 
-      // Atualizar status do service_request para accepted
       await _supabase
           .from('service_requests')
           .update({'status': 'accepted'})
           .eq('id', serviceRequestId);
 
-      // Criar conversa automaticamente entre cliente e freelancer
       await _createConversation(proposal);
 
-      // Recarregar propostas
       await _loadProposals();
 
       if (mounted) {
@@ -508,11 +514,9 @@ class _ProposalsPageState extends State<ProposalsPage> {
       final freelancerId = proposal['freelancer_id'] as String;
       final proposalId = proposal['id'] as String;
       
-      // Determinar participant1 e participant2 (menor ID primeiro)
       final participant1Id = user.id.compareTo(freelancerId) < 0 ? user.id : freelancerId;
       final participant2Id = user.id.compareTo(freelancerId) < 0 ? freelancerId : user.id;
 
-      // Verificar se já existe conversa
       final existingConversation = await _supabase
           .from('conversations')
           .select('id')
@@ -521,7 +525,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
           .maybeSingle();
 
       if (existingConversation == null) {
-        // Criar nova conversa
         await _supabase.from('conversations').insert({
           'participant1_id': participant1Id,
           'participant2_id': participant2Id,
@@ -533,7 +536,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
       }
     } catch (e) {
       print('Erro ao criar conversa: $e');
-      // Não bloquear o fluxo se falhar ao criar conversa
     }
   }
 
@@ -544,7 +546,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
           .update({'status': 'rejected'})
           .eq('id', proposalId);
 
-      // Recarregar propostas
       await _loadProposals();
 
       if (mounted) {
@@ -656,7 +657,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
     
     return Column(
       children: [
-        // Filtros com contadores
         Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.spacing24,
@@ -664,7 +664,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
           ),
           child: Column(
             children: [
-              // Primeira linha: Pendentes e Aceitas
               Row(
                 children: [
                   Expanded(
@@ -695,7 +694,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
                 ],
               ),
               const SizedBox(height: AppSpacing.spacing12),
-              // Segunda linha: Rejeitadas e Pagas
               Row(
                 children: [
                   Expanded(
@@ -729,22 +727,16 @@ class _ProposalsPageState extends State<ProposalsPage> {
           ),
         ),
 
-        // Lista de propostas
         Expanded(
           child: _isLoadingProposals
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColorsPrimary.primary700,
-                  ),
-                )
+              ? const CardSkeletonLoader(itemCount: 4)
               : proposals.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Nenhuma proposta encontrada',
-                        style: AppTypography.contentRegular.copyWith(
-                          color: AppColorsNeutral.neutral500,
-                        ),
-                      ),
+                  ? EmptyState(
+                      icon: Icons.inbox_outlined,
+                      title: 'Nenhuma proposta encontrada',
+                      subtitle: 'Assim que novas propostas chegarem, elas aparecerão aqui.',
+                      actionText: 'Atualizar',
+                      onAction: _loadProposals,
                     )
                   : RefreshIndicator(
                       onRefresh: _loadProposals,
@@ -774,11 +766,13 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           final serviceRequestId = proposal['service_request_id'] as String;
                           final proposalId = proposal['id'] as String;
                           final serviceName = serviceRequest?['service_description'] as String? ?? 'Serviço';
+                          final proposalKey = ValueKey(proposalId);
                           
-                          // Se proposta está paga, mostrar card especial com botão de chat
+                          Widget card;
+
                           if (paymentStatus == 'paid') {
                             final paymentDetails = proposal['payment_details'] as Map<String, dynamic>?;
-                            return PaidProposalCard(
+                            card = PaidProposalCard(
                               name: freelancerName,
                               location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                               price: _formatCurrency(price.toDouble()),
@@ -797,11 +791,12 @@ class _ProposalsPageState extends State<ProposalsPage> {
                             );
                           }
                           
-                          // Se a proposta foi aceita (mas não paga), mostrar card com botão de pagamento
                           if (status == 'accepted') {
-                            // Buscar dados completos do pagamento
-                            return FutureBuilder<Map<String, dynamic>?>(
-                              future: _getPaymentData(proposalId),
+                            card = FutureBuilder<Map<String, dynamic>?>(
+                              future: _paymentFutureCache.putIfAbsent(
+                                proposalId,
+                                () => _getPaymentData(proposalId),
+                              ),
                               builder: (context, snapshot) {
                                 final paymentData = snapshot.data;
                                 final hasPaidPayment = paymentData != null;
@@ -815,7 +810,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                   hasPaidPayment: hasPaidPayment,
                                   paymentReleaseStatus: releaseStatus,
                                   onPay: () {
-                                    // Navegar para tela de pagamento
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -825,12 +819,10 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                         ),
                                       ),
                                     ).then((_) {
-                                      // Recarregar propostas após voltar da tela de pagamento
                                       _loadProposals();
                                     });
                                   },
                                   onChat: hasPaidPayment ? () {
-                                    // TODO: Navegar para chat
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('Chat em desenvolvimento'),
@@ -838,7 +830,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                     );
                                   } : null,
                                   onReleasePayment: (hasPaidPayment && releaseStatus == 'retained') ? () {
-                                    // Navegar para tela de liberar pagamento
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -850,26 +841,28 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                       ),
                                     ).then((released) {
                                       if (released == true) {
-                                        // Recarregar propostas após liberar pagamento
                                         _loadProposals();
                                       }
                                     }).catchError((_) {
-                                      // Ignorar erros de navegação
                                     });
                                   } : null,
                                 );
                               },
                             );
+                          } else {
+                            card = ReceivedProposalCard(
+                              name: freelancerName,
+                              location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                              price: _formatCurrency(price.toDouble()),
+                              timeframe: 'Em até $availabilityValue $availabilityUnit',
+                              onAccept: () => _acceptProposal(proposal['id'] as String),
+                              onReject: () => _rejectProposal(proposal['id'] as String),
+                            );
                           }
-                          
-                          // Proposta pendente - mostrar botões de aceitar/rejeitar
-                          return ReceivedProposalCard(
-                            name: freelancerName,
-                            location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
-                            price: _formatCurrency(price.toDouble()),
-                            timeframe: 'Em até $availabilityValue $availabilityUnit',
-                            onAccept: () => _acceptProposal(proposal['id'] as String),
-                            onReject: () => _rejectProposal(proposal['id'] as String),
+
+                          return KeyedSubtree(
+                            key: proposalKey,
+                            child: card,
                           );
                         },
                       ),
@@ -884,7 +877,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
     
     return Column(
       children: [
-        // Filtros com contadores (mesma UI que cliente)
         Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.spacing24,
@@ -892,7 +884,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
           ),
           child: Column(
             children: [
-              // Primeira linha: Pendentes e Aceitas
               Row(
                 children: [
                   Expanded(
@@ -923,7 +914,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
                 ],
               ),
               const SizedBox(height: AppSpacing.spacing12),
-              // Segunda linha: Rejeitadas e Pagas
               Row(
                 children: [
                   Expanded(
@@ -957,22 +947,16 @@ class _ProposalsPageState extends State<ProposalsPage> {
           ),
         ),
         
-        // Lista de propostas
         Expanded(
           child: _isLoadingProposals
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColorsPrimary.primary700,
-                  ),
-                )
+              ? const CardSkeletonLoader(itemCount: 4)
               : proposals.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Nenhuma proposta encontrada',
-                        style: AppTypography.contentRegular.copyWith(
-                          color: AppColorsNeutral.neutral500,
-                        ),
-                      ),
+                  ? EmptyState(
+                      icon: Icons.send_outlined,
+                      title: 'Nenhuma proposta enviada',
+                      subtitle: 'Envie uma proposta para vê-la listada aqui.',
+                      actionText: 'Atualizar',
+                      onAction: _loadProposals,
                     )
                   : RefreshIndicator(
                       onRefresh: _loadProposals,
@@ -999,11 +983,14 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           final availabilityValue = proposal['availability_value'] as int? ?? 0;
                           final availabilityUnit = proposal['availability_unit'] as String? ?? 'Horas';
                           final serviceName = serviceRequest?['service_description'] as String? ?? 'Serviço';
+                          final proposalId = proposal['id'] as String;
+                          final proposalKey = ValueKey(proposalId);
                           
-                          // Se proposta está paga, mostrar card especial com botão de chat
                           if (paymentStatus == 'paid') {
                             final paymentDetails = proposal['payment_details'] as Map<String, dynamic>?;
-                            return PaidProposalCard(
+                            return KeyedSubtree(
+                              key: proposalKey,
+                              child: PaidProposalCard(
                               name: clientName,
                               location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                               price: _formatCurrency(price.toDouble()),
@@ -1012,25 +999,27 @@ class _ProposalsPageState extends State<ProposalsPage> {
                               paymentDate: paymentDetails?['created_at'] as String?,
                               releaseStatus: paymentDetails?['release_status'] as String?,
                               onChat: () {
-                                // TODO: Navegar para chat
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Chat em desenvolvimento'),
-                                  ),
+                                  ), 
                                 );
                               },
+                              ),
                             );
                           }
                           
-                          // Proposta normal (pending, accepted, rejected)
                           final status = _getProposalStatus(proposal['status'] as String?);
                           
-                          return SentProposalCard(
-                            name: clientName,
-                            location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
-                            price: _formatCurrency(price.toDouble()),
-                            timeframe: 'Em até $availabilityValue $availabilityUnit',
-                            status: status,
+                          return KeyedSubtree(
+                            key: proposalKey,
+                            child: SentProposalCard(
+                              name: clientName,
+                              location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
+                              price: _formatCurrency(price.toDouble()),
+                              timeframe: 'Em até $availabilityValue $availabilityUnit',
+                              status: status,
+                            ),
                           );
                         },
                       ),
@@ -1051,10 +1040,12 @@ class _ProposalsPageState extends State<ProposalsPage> {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        backgroundColor: isSelected ? color.withOpacity(0.1) : AppColorsNeutral.neutral0,
+        backgroundColor:
+            isSelected ? color.withValues(alpha: 0.1) : AppColorsNeutral.neutral0,
         foregroundColor: isSelected ? color : AppColorsNeutral.neutral600,
         side: BorderSide(
-          color: isSelected ? color.withOpacity(0.5) : AppColorsNeutral.neutral200,
+          color:
+              isSelected ? color.withValues(alpha: 0.5) : AppColorsNeutral.neutral200,
           width: isSelected ? 2 : 1,
         ),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.radius8),
@@ -1085,7 +1076,6 @@ class _ProposalsPageState extends State<ProposalsPage> {
             ),
           ),
           const SizedBox(width: 4),
-          // Contador
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(

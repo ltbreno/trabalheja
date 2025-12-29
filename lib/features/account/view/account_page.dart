@@ -7,13 +7,14 @@ import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/account/view/support_page.dart';
 import 'package:trabalheja/core/auth/auth_state_notifier.dart';
-import 'profile_data_page.dart'; // Importar a nova página
-import 'security_password_page.dart'; // Importar a nova página
+import 'profile_data_page.dart'; 
+import 'security_password_page.dart';
 import 'faq_page.dart';
 import 'addresses_page.dart';
 import 'terms_of_service_page.dart';
 import 'privacy_policy_page.dart';
-import 'bank_account_page.dart'; // Dados bancários do freelancer
+import 'bank_account_page.dart';
+import 'package:trabalheja/features/payment/view/save_card_page.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -245,9 +246,12 @@ class _AccountPageState extends State<AccountPage> {
               ),
             _buildListTile( 
               context: context,
-              iconPath: 'assets/icons/credit_card.svg', // Use o ícone correto
-              title: 'Formas de pagamento',
-              onTap: () { /* TODO: Navegar */ },
+              iconPath: 'assets/icons/credit_card.svg',
+              title: 'Meus Cartões',
+              onTap: () { Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SaveCardPage()),
+              ); },
             ),
             _buildListTile(
               context: context,

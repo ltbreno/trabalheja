@@ -56,6 +56,11 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
   int _selectedInstallments = 1;
   PaymentMethod _selectedPaymentMethod = PaymentMethod.creditCard;
   
+  // Saved Cards
+  List<Map<String, dynamic>> _savedCards = [];
+  String? _selectedCardId;
+  bool _useNewCard = false;
+  
   // Dados do serviço
   Map<String, dynamic>? _serviceRequest;
   Map<String, dynamic>? _clientProfile;
@@ -137,6 +142,16 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
         _serviceAmount = serviceAmount;
         _platformFee = platformFee;
         _totalAmount = totalAmount;
+        _platformFee = platformFee;
+        _totalAmount = totalAmount;
+      });
+
+      // 6. Buscando cartões salvos
+      if (clientProfile != null) {
+        await _fetchSavedCards(user.id);
+      }
+
+      setState(() {
         _isLoadingData = false;
       });
     } catch (e) {
@@ -150,6 +165,40 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
         );
         Navigator.pop(context);
       }
+    }
+  }
+
+  Future<void> _fetchSavedCards(String userId) async {
+    try {
+      final profile = await _supabase
+          .from('profiles')
+          .select('pagarme_customer_id')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (profile != null && profile['pagarme_customer_id'] != null) {
+        final customerId = profile['pagarme_customer_id'] as String;
+        final cards = await _paymentService.listCards(customerPagarmeId: customerId);
+        
+        if (mounted) {
+          setState(() {
+            _savedCards = cards;
+            // Se tem cartões, seleciona o primeiro por padrão
+            if (_savedCards.isNotEmpty) {
+              _selectedCardId = _savedCards.first['id'] ?? _savedCards.first['pagarme_card_id'];
+              _useNewCard = false;
+            } else {
+              _useNewCard = true;
+            }
+          });
+        }
+      } else {
+        setState(() => _useNewCard = true);
+      }
+    } catch (e) {
+      print('❌ Erro ao buscar cartões salvos: $e');
+      // Falha silenciosa, fallback para novo cartão
+      setState(() => _useNewCard = true);
     }
   }
 
@@ -331,18 +380,24 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
 
   Future<void> _processCreditCardPayment(int amountInCents, String cpf) async {
     final cardToken = _cardTokenController.text.trim();
-    if (cardToken.isEmpty) {
+    if (_useNewCard && cardToken.isEmpty) {
       throw Exception('Por favor, adicione os dados do cartão primeiro');
+    }
+    
+    if (!_useNewCard && _selectedCardId == null) {
+      throw Exception('Por favor, selecione um cartão salvo');
     }
 
     print('📡 Processando pagamento com cartão...');
     print('   Valor total: R\$ ${_totalAmount.toStringAsFixed(2)}');
     print('   Parcelas: ${_selectedInstallments}x');
     print('   CPF: ${cpf.substring(0, 3)}.***.***-${cpf.substring(9)}');
+    if (!_useNewCard) print('   💳 Usando cartão salvo: $_selectedCardId');
 
     final result = await _paymentService.createPayment(
       amount: amountInCents,
-      cardToken: cardToken,
+      cardToken: _useNewCard ? cardToken : null,
+      cardId: _useNewCard ? null : _selectedCardId,
       customerName: _clientProfile!['full_name'] as String,
       customerEmail: _clientProfile!['email'] as String,
       customerDocument: cpf,
@@ -902,8 +957,6 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
   }
 
   Widget _buildPaymentMethod() {
-    final hasCard = _cardTokenController.text.isNotEmpty;
-    
     return Container(
       padding: const EdgeInsets.all(AppSpacing.spacing16),
       decoration: BoxDecoration(
@@ -927,46 +980,95 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
             ],
           ),
           const SizedBox(height: AppSpacing.spacing16),
-          
-          // Botão para adicionar/alterar cartão
-          OutlinedButton.icon(
-            onPressed: _openCardForm,
-            icon: Icon(hasCard ? Icons.edit : Icons.add_card),
-            label: Text(hasCard ? 'Alterar Cartão' : 'Adicionar Cartão'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-              side: BorderSide(
-                color: hasCard ? Colors.green : AppColorsPrimary.primary800,
-              ),
-              foregroundColor: hasCard ? Colors.green : AppColorsPrimary.primary800,
+
+          if (_savedCards.isNotEmpty) ...[
+            Text(
+              'Seus cartões salvos',
+              style: AppTypography.captionMedium.copyWith(color: AppColorsNeutral.neutral600),
             ),
-          ),
-          
-          if (hasCard) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Cartão adicionado com sucesso',
-                      style: AppTypography.captionMedium.copyWith(
-                        color: Colors.green.shade900,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 8),
+            ..._savedCards.map((card) {
+              final cardId = card['id'] ?? card['pagarme_card_id'];
+              final last4 = card['last_four_digits'] ?? card['last_digits'] ?? '****';
+              final brand = card['brand'] ?? 'Cartão';
+              final isSelected = _selectedCardId == cardId && !_useNewCard;
+              final holderName = card['holder_name'] ?? '';
+
+              return RadioListTile<String>(
+                value: cardId,
+                groupValue: _useNewCard ? null : _selectedCardId,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCardId = value;
+                    _useNewCard = false;
+                    _cardTokenController.clear(); // Limpa token de novo cartão
+                  });
+                },
+                title: Text('$brand finalizado com $last4'),
+                subtitle: Text(holderName),
+                secondary: Icon(Icons.credit_card, color: isSelected ? AppColorsPrimary.primary600 : AppColorsNeutral.neutral500),
+                activeColor: AppColorsPrimary.primary600,
+                contentPadding: EdgeInsets.zero,
+              );
+            }).toList(),
+            
+            RadioListTile<bool>(
+              value: true,
+              groupValue: _useNewCard,
+              onChanged: (value) {
+                setState(() {
+                  _useNewCard = true;
+                  _selectedCardId = null;
+                });
+              },
+              title: const Text('Usar um novo cartão'),
+              activeColor: AppColorsPrimary.primary600,
+              contentPadding: EdgeInsets.zero,
             ),
           ],
+          
+          if (_useNewCard || _savedCards.isEmpty) ...[
+            const SizedBox(height: 12),
+              // Botão para adicionar/alterar cartão
+            OutlinedButton.icon(
+              onPressed: _openCardForm,
+              icon: Icon(_cardTokenController.text.isNotEmpty ? Icons.edit : Icons.add_card),
+              label: Text(_cardTokenController.text.isNotEmpty ? 'Alterar Cartão' : 'Adicionar Cartão'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+                side: BorderSide(
+                  color: _cardTokenController.text.isNotEmpty ? Colors.green : AppColorsPrimary.primary800,
+                ),
+                foregroundColor: _cardTokenController.text.isNotEmpty ? Colors.green : AppColorsPrimary.primary800,
+              ),
+            ),
+            
+            if (_cardTokenController.text.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Cartão adicionado com sucesso',
+                        style: AppTypography.captionMedium.copyWith(
+                          color: Colors.green.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ]
         ],
       ),
     );
@@ -975,7 +1077,7 @@ class _CreatePaymentPageImprovedState extends State<CreatePaymentPageImproved> {
   Widget _buildPaymentButton() {
     final canPay = _selectedPaymentMethod == PaymentMethod.pix 
         ? true // PIX não precisa de token de cartão
-        : _cardTokenController.text.isNotEmpty;
+        : (_useNewCard ? _cardTokenController.text.isNotEmpty : _selectedCardId != null);
     
     return AppButton(
       text: _isLoading

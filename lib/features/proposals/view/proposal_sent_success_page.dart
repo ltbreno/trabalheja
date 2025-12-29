@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
-import 'package:trabalheja/features/home/view/freelancer_dashboard_page.dart';
+import 'package:trabalheja/core/widgets/MainAppShell.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 
 class ProposalSentSuccessPage extends StatelessWidget {
@@ -65,7 +65,7 @@ class ProposalSentSuccessPage extends StatelessWidget {
                   // Voltar para o dashboard do freelancer
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
-                      builder: (context) => const FreelancerDashboardPage(),
+                      builder: (context) => const MainAppShell(),
                     ),
                     (route) => false,
                   );
