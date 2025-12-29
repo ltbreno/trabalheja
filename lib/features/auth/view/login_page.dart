@@ -30,9 +30,10 @@ class LoginPage extends StatelessWidget {
             ),
           ),
           onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context); // Ação de voltar padrão
-            }
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const WelcomePage()),
+            );
           },
         ),
         title: Text(
@@ -51,7 +52,7 @@ class LoginPage extends StatelessWidget {
               const SizedBox(height: AppSpacing.spacing16), // Espaço após AppBar
 
               Text(
-                'Bem-vindo(a) de volta\nao TrabalheJá',
+                'Bem-vindo(a) de volta\nao Handsy',
                 style: AppTypography.heading1.copyWith( // Título grande
                   color: AppColorsPrimary.primary800,
                 ),

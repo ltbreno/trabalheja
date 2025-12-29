@@ -40,7 +40,7 @@ class App extends StatelessWidget {
     final baseTheme = ThemeData.light(useMaterial3: true);
 
     return MaterialApp(
-      title: 'TrabalheJa',
+      title: 'Handsy',
       theme: baseTheme.copyWith(
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColorsPrimary.primary900,
