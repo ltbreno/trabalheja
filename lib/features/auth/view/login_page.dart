@@ -30,12 +30,9 @@ class LoginPage extends StatelessWidget {
             ),
           ),
           onPressed: () {
-            // Retornar para a WelcomePage
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const WelcomePage()),
-              (route) => false,
-            );
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context); // Ação de voltar padrão
+            }
           },
         ),
         title: Text(

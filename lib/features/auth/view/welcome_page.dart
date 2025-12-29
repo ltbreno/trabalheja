@@ -24,13 +24,9 @@ class WelcomePage extends StatelessWidget {
             children: [
               const Spacer(flex: 2),
 
-              SvgPicture.asset(
-                'assets/icons/logo.svg',
-                height: 40,
-                colorFilter: ColorFilter.mode(
-                  AppColorsNeutral.neutral0,
-                  BlendMode.srcIn,
-                ),
+              Image.asset(
+                'assets/icons/handsy.png',
+                height: 120,
               ),
 
               const Spacer(flex: 3),    
