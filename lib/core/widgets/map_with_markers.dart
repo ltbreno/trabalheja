@@ -3,6 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+/// Controller para manipular o MapWithMarkers programaticamente
+class MapWithMarkersController {
+  _MapWithMarkersState? _state;
+
+  void _attach(_MapWithMarkersState state) {
+    _state = state;
+  }
+
+  void _detach() {
+    _state = null;
+  }
+
+  /// Centraliza o mapa em uma nova posição
+  void moveToLocation(LatLng newCenter, {double? zoom}) {
+    _state?.moveToLocation(newCenter, zoom: zoom);
+  }
+
+  /// Obtém o centro atual do mapa
+  LatLng? get currentCenter => _state?._currentCenter;
+}
+
 /// Widget de mapa com marcadores customizados
 class MapWithMarkers extends StatefulWidget {
   /// Coordenada central do mapa
@@ -23,6 +44,9 @@ class MapWithMarkers extends StatefulWidget {
   /// Se o mapa pode ser interativo
   final bool isInteractive;
 
+  /// Controller opcional para manipular o mapa
+  final MapWithMarkersController? controller;
+
   const MapWithMarkers({
     super.key,
     required this.center,
@@ -31,6 +55,7 @@ class MapWithMarkers extends StatefulWidget {
     this.isInteractive = true,
     this.onMarkerTap,
     this.onMapTap,
+    this.controller,
   });
 
   @override
@@ -40,22 +65,36 @@ class MapWithMarkers extends StatefulWidget {
 class _MapWithMarkersState extends State<MapWithMarkers> {
   late MapController _mapController;
   LatLng? _selectedMarkerPosition;
+  late LatLng _currentCenter;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
+    _currentCenter = widget.center;
+    widget.controller?._attach(this);
+  }
+
+  @override
+  void dispose() {
+    widget.controller?._detach();
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(MapWithMarkers oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.center != oldWidget.center) {
-      _mapController.move(widget.center, widget.initialZoom);
+      _currentCenter = widget.center;
+      _mapController.move(_currentCenter, widget.initialZoom);
     }
   }
 
   void moveToLocation(LatLng newCenter, {double? zoom}) {
+    if (!mounted) return;
+    setState(() {
+      _currentCenter = newCenter;
+    });
     _mapController.move(newCenter, zoom ?? widget.initialZoom);
   }
 
@@ -64,7 +103,7 @@ class _MapWithMarkersState extends State<MapWithMarkers> {
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
-        initialCenter: widget.center,
+        initialCenter: _currentCenter,
         initialZoom: widget.initialZoom,
         interactionOptions: InteractionOptions(
           flags: widget.isInteractive
@@ -92,7 +131,7 @@ class _MapWithMarkersState extends State<MapWithMarkers> {
               CircleMarker(
                 point: _selectedMarkerPosition!,
                 radius: 50,
-                color: Colors.cyan.withOpacity(0.2),
+                color: Colors.cyan.withValues(alpha: 0.2),
                 borderColor: Colors.cyan,
                 borderStrokeWidth: 2,
               ),
