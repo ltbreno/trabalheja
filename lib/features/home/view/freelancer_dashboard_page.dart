@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
@@ -11,6 +12,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/core/utils/distance_calculator.dart' as distance_util;
 import 'package:trabalheja/core/widgets/map_with_markers.dart';
 import 'package:trabalheja/core/widgets/empty_state.dart';
+import 'package:trabalheja/features/auth/view/freelancer_radius_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/service_request/view/service_details_page.dart';
 
@@ -25,8 +27,10 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
   final _supabase = Supabase.instance.client;
   final _searchController = TextEditingController();
   Timer? _debounce;
+  final MapWithMarkersController _mapController = MapWithMarkersController();
   
   bool _isLoading = true;
+  bool _isLoadingLocation = false;
   List<Map<String, dynamic>> _serviceRequests = [];
   List<Map<String, dynamic>> _filteredRequests = [];
   Map<String, dynamic>? _selectedRequest;
@@ -34,7 +38,59 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
   
   // Coordenadas do freelancer
   LatLng? _freelancerLocation;
+  LatLng _mapCenter = const LatLng(-23.5505, -46.6333);
   double _serviceRadius = 5000; // metros padrão
+
+  Future<bool> _ensureLocationPermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return false;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return false;
+    }
+    if (permission == LocationPermission.deniedForever) return false;
+
+    return true;
+  }
+
+  Future<void> _centerOnCurrentLocation() async {
+    if (_isLoadingLocation) return;
+    setState(() => _isLoadingLocation = true);
+
+    try {
+      final hasPermission = await _ensureLocationPermission();
+      if (!hasPermission) return;
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final current = LatLng(pos.latitude, pos.longitude);
+
+      _mapController.moveToLocation(current, zoom: 15);
+      if (!mounted) return;
+      setState(() => _mapCenter = current);
+    } catch (_) {
+      // Falha silenciosa (mantém o mapa como está)
+    } finally {
+      if (mounted) setState(() => _isLoadingLocation = false);
+    }
+  }
+
+  Future<void> _openLocationSettings() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const FreelancerRadiusPage(popOnSave: true),
+      ),
+    );
+
+    if (!mounted) return;
+    if (changed == true) {
+      await _loadDashboardData();
+    }
+  }
 
   @override
   void initState() {
@@ -81,6 +137,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
         
         if (lat != null && lng != null) {
           _freelancerLocation = LatLng(lat, lng);
+          _mapCenter = _freelancerLocation!;
           
           // Converter raio para metros
           if (radiusStr != null) {
@@ -225,60 +282,73 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
       );
     }
     
-    final center = _freelancerLocation ?? const LatLng(-23.5505, -46.6333);
-    
     return Scaffold(
       key: _scaffoldKey,
       body: Stack(
         children: [
           // Mapa
           MapWithMarkers(
-            center: center,
+            center: _mapCenter,
             initialZoom: 13.0,
             markers: _buildMarkers(),
             onMarkerTap: _onMarkerTap,
+            controller: _mapController,
           ),
           
-          // Botão "Bicos próximos"
+          // Botão "Minha localização" (substitui "Bicos próximos")
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
             right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.spacing16,
-                vertical: AppSpacing.spacing12,
-              ),
-              decoration: BoxDecoration(
-                color: AppColorsPrimary.primary700,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isLoadingLocation ? null : _centerOnCurrentLocation,
                 borderRadius: AppRadius.radius8,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.spacing16,
+                    vertical: AppSpacing.spacing12,
                   ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SvgPicture.asset(
-                    'assets/icons/location_pin.svg',
-                    height: 20,
-                    colorFilter: ColorFilter.mode(
-                      AppColorsNeutral.neutral0,
-                      BlendMode.srcIn,
-                    ),
+                  decoration: BoxDecoration(
+                    color: AppColorsPrimary.primary700,
+                    borderRadius: AppRadius.radius8,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: AppSpacing.spacing8),
-                  Text(
-                    'Bicos próximos',
-                    style: AppTypography.contentMedium.copyWith(
-                      color: AppColorsNeutral.neutral0,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isLoadingLocation)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      else
+                        Icon(
+                          Icons.my_location,
+                          color: AppColorsNeutral.neutral0,
+                          size: 20,
+                        ),
+                      const SizedBox(width: AppSpacing.spacing8),
+                      Text(
+                        _isLoadingLocation ? 'Localizando...' : 'Minha localização',
+                        style: AppTypography.contentMedium.copyWith(
+                          color: AppColorsNeutral.neutral0,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -298,7 +368,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, -2),
                     ),
@@ -323,6 +393,43 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
                         controller: scrollController,
                         padding: const EdgeInsets.all(AppSpacing.spacing24),
                         children: [
+                          // CTA: freelancer ainda não configurou localização/raio
+                          if (_freelancerLocation == null) ...[
+                            Container(
+                              padding: const EdgeInsets.all(AppSpacing.spacing16),
+                              decoration: BoxDecoration(
+                                color: AppColorsPrimary.primary50,
+                                borderRadius: AppRadius.radius12,
+                                border: Border.all(color: AppColorsPrimary.primary100),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Configure sua localização',
+                                    style: AppTypography.highlightBold.copyWith(
+                                      color: AppColorsNeutral.neutral900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.spacing8),
+                                  Text(
+                                    'Para ver bicos próximos, defina sua localização e o raio de atuação.',
+                                    style: AppTypography.captionRegular.copyWith(
+                                      color: AppColorsNeutral.neutral700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.spacing12),
+                                  AppButton.primary(
+                                    text: 'Definir localização',
+                                    onPressed: _openLocationSettings,
+                                    minWidth: double.infinity,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.spacing24),
+                          ],
+
                           // Título
                           Text(
                             'Qual bico você está procurando?',
@@ -575,7 +682,7 @@ class _FreelancerDashboardPageState extends State<FreelancerDashboardPage> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColorsPrimary.primary700.withOpacity(0.2),
+                    color: AppColorsPrimary.primary700.withValues(alpha: 0.2),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),

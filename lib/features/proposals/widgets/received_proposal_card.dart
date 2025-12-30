@@ -11,6 +11,7 @@ class ReceivedProposalCard extends StatelessWidget {
   final String location;
   final String price;
   final String timeframe;
+  final String? message; // Observações da proposta
   final VoidCallback onAccept;
   final VoidCallback onReject;
 
@@ -20,6 +21,7 @@ class ReceivedProposalCard extends StatelessWidget {
     required this.location,
     required this.price,
     required this.timeframe,
+    this.message,
     required this.onAccept,
     required this.onReject,
   });
@@ -63,6 +65,46 @@ class ReceivedProposalCard extends StatelessWidget {
             iconPath: 'assets/icons/calendar.svg', // Ícone de calendário
             text: timeframe,
           ),
+          // Exibir observações se houver
+          if (message != null && message!.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.spacing12),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.spacing12),
+              decoration: BoxDecoration(
+                color: AppColorsNeutral.neutral50,
+                borderRadius: AppRadius.radius8,
+                border: Border.all(color: AppColorsNeutral.neutral200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      SvgPicture.asset(
+                        'assets/icons/document.svg',
+                        height: 16,
+                        colorFilter: ColorFilter.mode(AppColorsPrimary.primary900, BlendMode.srcIn),
+                      ),
+                      const SizedBox(width: AppSpacing.spacing8),
+                      Text(
+                        'Observações',
+                        style: AppTypography.captionBold.copyWith(
+                          color: AppColorsPrimary.primary900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.spacing8),
+                  Text(
+                    message!,
+                    style: AppTypography.captionRegular.copyWith(
+                      color: AppColorsNeutral.neutral700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.spacing16),
           _buildCardActions(),
         ],
