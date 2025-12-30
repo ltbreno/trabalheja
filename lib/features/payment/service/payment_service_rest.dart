@@ -333,58 +333,6 @@ class PaymentServiceRest {
     }
   }
 
-  /// Cria um recipient (recebedor) no Pagar.me
-  /// 
-  /// [name] - Nome do recebedor
-  /// [email] - Email do recebedor
-  /// [document] - CPF/CNPJ do recebedor
-  /// [bankAccount] - Dados da conta bancária
-  Future<Map<String, dynamic>> createRecipient({
-    required String name,
-    required String email,
-    required String document,
-    required Map<String, dynamic> bankAccount,
-  }) async {
-    try {
-      print('📡 Criando recipient na API REST...');
-      print('   👤 Nome: $name');
-      print('   📧 Email: $email');
-      print('   🏦 Banco: ${bankAccount['bank']}');
-      
-      final response = await http.post(
-        Uri.parse('$apiBaseUrl/api/recipients'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'name': name,
-          'email': email,
-          'document': document,
-          'bank_account': bankAccount,
-        }),
-      );
-
-      final responseData = json.decode(response.body) as Map<String, dynamic>;
-
-      // Verificar se é um status de sucesso (200 OK ou 201 Created)
-      final isSuccessStatus = response.statusCode >= 200 && response.statusCode < 300;
-
-      if (!isSuccessStatus) {
-        final error = responseData['error'] ?? responseData['message'] ?? 'Erro desconhecido';
-        print('❌ Erro ao criar recipient: $error');
-        throw Exception('Erro ao criar recipient: $error');
-      }
-
-      print('✅ Recipient criado com sucesso!');
-      print('   🆔 ID: ${responseData['data']?['pagarme_recipient_id'] ?? responseData['id']}');
-      return responseData;
-      
-    } catch (e) {
-      print('❌ Erro ao criar recipient: $e');
-      throw Exception('Erro ao criar recipient: ${e.toString()}');
-    }
-  }
-
   /// Cria uma transferência para um recipient
   /// Usado quando o serviço é finalizado para liberar o pagamento ao freelancer
   /// 

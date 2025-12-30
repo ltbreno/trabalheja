@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
-import 'package:trabalheja/features/payment/service/payment_service.dart';
 
 /// Página para liberar pagamento para o freelancer
 /// 
@@ -24,66 +23,10 @@ class ReleasePaymentPage extends StatefulWidget {
 
 class _ReleasePaymentPageState extends State<ReleasePaymentPage> {
   final _supabase = Supabase.instance.client;
-  final _paymentService = PaymentService();
   
   bool _isReleasing = false;
-  String? _recipientId;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRecipientId();
-  }
-
-  Future<void> _loadRecipientId() async {
-    try {
-      // Buscar recipient_id do freelancer
-      final freelancerId = widget.freelancerProfile['id'] as String;
-      
-      final entity = await _supabase
-          .from('pagarme_entities')
-          .select('pagarme_id')
-          .eq('user_id', freelancerId)
-          .eq('entity_type', 'recipient')
-          .maybeSingle();
-
-      if (entity != null) {
-        setState(() {
-          _recipientId = entity['pagarme_id'] as String;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Freelancer ainda não cadastrou dados bancários'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
-      
-    } catch (e) {
-      print('❌ Erro ao carregar recipient ID: $e');
-      setState(() => _isLoading = false);
-    }
-  }
 
   Future<void> _releasePayment() async {
-    if (_recipientId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Freelancer precisa cadastrar dados bancários primeiro'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
 
     // Confirmar ação
     final confirmed = await showDialog<bool>(
@@ -129,21 +72,15 @@ class _ReleasePaymentPageState extends State<ReleasePaymentPage> {
 
     try {
       print('💸 Liberando pagamento...');
-      print('   Recipient ID: $_recipientId');
       print('   Valor: ${widget.paymentData['amount']}');
       print('   Order ID: ${widget.paymentData['pagarme_order_id']}');
 
+      // TODO: Implementar lógica de transferência sem recipient_id
+      // A transferência será feita pelo backend usando os dados bancários salvos
       // Calcular valor a ser transferido (serviço - taxa da plataforma)
       final serviceAmount = widget.paymentData['amount'] as int;
       final platformFee = widget.paymentData['platform_fee'] as int;
-      final transferAmount = serviceAmount - platformFee;
-
-      // Criar transferência para o freelancer
-      await _paymentService.createTransfer(
-        recipientId: _recipientId!,
-        amount: transferAmount,
-        orderId: widget.paymentData['pagarme_order_id'] as String,
-      );
+      // final transferAmount = serviceAmount - platformFee; // Será usado quando implementar transferência
 
       // Atualizar status do pagamento no Supabase
       await _supabase
@@ -199,9 +136,7 @@ class _ReleasePaymentPageState extends State<ReleasePaymentPage> {
         title: const Text('Liberar Pagamento'),
         centerTitle: true,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+      body: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,36 +230,6 @@ class _ReleasePaymentPageState extends State<ReleasePaymentPage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Status
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _recipientId != null ? Colors.green.shade50 : Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _recipientId != null ? Icons.check_circle : Icons.warning,
-                          color: _recipientId != null ? Colors.green : Colors.orange,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _recipientId != null
-                                ? 'Dados bancários cadastrados ✓'
-                                : 'Aguardando cadastro de dados bancários',
-                            style: TextStyle(
-                              color: _recipientId != null ? Colors.green.shade900 : Colors.orange.shade900,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
                   // Info
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -365,7 +270,7 @@ class _ReleasePaymentPageState extends State<ReleasePaymentPage> {
                   // Botão de liberar
                   AppButton(
                     text: _isReleasing ? 'Liberando...' : 'Liberar Pagamento',
-                    onPressed: (_isReleasing || _recipientId == null) ? null : _releasePayment,
+                    onPressed: _isReleasing ? null : _releasePayment,
                     isLoading: _isReleasing,
                   ),
                   const SizedBox(height: 16),

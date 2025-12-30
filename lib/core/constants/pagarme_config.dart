@@ -8,7 +8,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// Nunca exponha secret keys diretamente no código!
 class PagarmeConfig {
   /// ID da conta Pagar.me
-  /// Usado como recipient_id nas transações
   static String get accountId {
     final value = dotenv.env['PAGARME_ACCOUNT_ID'];
     if (value == null || value.isEmpty) {

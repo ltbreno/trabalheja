@@ -3,11 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
-import 'package:trabalheja/features/payment/service/payment_service.dart';
 
 /// Página para freelancer cadastrar dados bancários
-/// 
-/// Quando salvo, cria automaticamente um Recipient no Pagar.me
 class BankAccountPage extends StatefulWidget {
   const BankAccountPage({super.key});
 
@@ -17,7 +14,6 @@ class BankAccountPage extends StatefulWidget {
 
 class _BankAccountPageState extends State<BankAccountPage> {
   final _supabase = Supabase.instance.client;
-  final _paymentService = PaymentService();
   final _formKey = GlobalKey<FormState>();
   
   // Controllers
@@ -128,46 +124,9 @@ class _BankAccountPageState extends State<BankAccountPage> {
         throw Exception('Usuário não autenticado');
       }
 
-      // Buscar email do perfil
-      final profile = await _supabase
-          .from('profiles')
-          .select('email')
-          .eq('id', userId)
-          .single();
-
-      final email = profile['email'] as String;
-
       print('💾 Salvando dados bancários...');
 
-      // 1. Criar recipient no Pagar.me
-      print('📡 Criando recipient no Pagar.me...');
-      
-      final recipientResponse = await _paymentService.createRecipient(
-        name: _accountHolderController.text.trim(),
-        email: email,
-        document: _documentController.text.replaceAll(RegExp(r'[^\d]'), ''),
-        bankAccount: {
-          'holder_name': _accountHolderController.text.trim(),
-          'holder_type': _holderType,
-          'holder_document': _documentController.text.replaceAll(RegExp(r'[^\d]'), ''),
-          'bank': _bankCodeController.text.trim(),
-          'branch_number': _branchNumberController.text.trim(),
-          'branch_check_digit': _branchCheckDigitController.text.trim(),
-          'account_number': _accountNumberController.text.trim(),
-          'account_check_digit': _accountCheckDigitController.text.trim(),
-          'type': _accountType,
-        },
-      );
-
-      final recipientId = recipientResponse['data']?['pagarme_recipient_id'] as String?;
-      
-      if (recipientId == null) {
-        throw Exception('Erro ao criar recipient: ID não retornado');
-      }
-
-      print('✅ Recipient criado: $recipientId');
-
-      // 2. Salvar dados bancários no Supabase
+      // Salvar dados bancários no Supabase
       print('💾 Salvando no banco de dados...');
       
       final bankAccountData = {
@@ -202,37 +161,6 @@ class _BankAccountPageState extends State<BankAccountPage> {
         await _supabase
             .from('bank_accounts')
             .insert(bankAccountData);
-      }
-
-      // 3. Salvar recipient ID na tabela pagarme_entities
-      print('💾 Salvando recipient ID...');
-      
-      final entityData = {
-        'user_id': userId,
-        'entity_type': 'recipient',
-        'pagarme_id': recipientId,
-        'status': 'active',
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      // Verificar se já existe
-      final existingEntity = await _supabase
-          .from('pagarme_entities')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('entity_type', 'recipient')
-          .maybeSingle();
-
-      if (existingEntity != null) {
-        await _supabase
-            .from('pagarme_entities')
-            .update(entityData)
-            .eq('user_id', userId)
-            .eq('entity_type', 'recipient');
-      } else {
-        await _supabase
-            .from('pagarme_entities')
-            .insert(entityData);
       }
 
       print('✅ Dados bancários salvos com sucesso!');
