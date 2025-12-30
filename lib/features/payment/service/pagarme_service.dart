@@ -530,7 +530,7 @@ class PagarmeService {
       print('❌ Erro de conexão ao criar token: $e');
       return CardTokenResponse(
         success: false,
-        error: 'Erro de conexão com o backend. Verifique se o servidor está rodando em localhost:3000',
+        error: 'Erro de conexão com o backend. Verifique se o servidor está rodando em ${PagarmeConfig.restApiBaseUrl}',
       );
     } catch (e) {
       print('❌ Erro ao criar card_token: $e');
