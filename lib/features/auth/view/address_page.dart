@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/features/account/view/privacy_policy_page.dart';
+import 'package:trabalheja/features/account/view/terms_of_service_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/core/widgets/MainAppShell.dart';
@@ -42,6 +44,8 @@ class _AddressPageState extends State<AddressPage> {
   bool _isLoading = false;
   String? _feedbackMessage; // Nova variável para mensagem de feedback
   bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
+  bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
 
   // Máscara para CEP
   final _cepMaskFormatter = MaskTextInputFormatter(
@@ -76,6 +80,14 @@ class _AddressPageState extends State<AddressPage> {
 
   Future<void> _continue() async {
     _clearFeedback(); // Limpa feedback anterior
+
+    if (!_acceptedTerms || !_acceptedPrivacy) {
+      _showFeedback(
+        'Para concluir o cadastro, aceite os Termos de Uso e a Política de Privacidade.',
+        isError: true,
+      );
+      return;
+    }
 
     if (!(_formKey.currentState?.validate() ?? false)) {
       _showFeedback('Por favor, preencha todos os campos obrigatórios.', isError: true);
@@ -162,6 +174,20 @@ class _AddressPageState extends State<AddressPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _openTermsOfService() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+    );
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
+    );
   }
 
   /// Cria um customer no Pagar.me para o cliente
@@ -396,6 +422,99 @@ class _AddressPageState extends State<AddressPage> {
                   },
                 ),
                 const SizedBox(height: AppSpacing.spacing32),
+
+                // Aceites obrigatórios
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _acceptedTerms,
+                      activeColor: AppColorsPrimary.primary900,
+                      onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+                    ),
+                    Expanded(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Li e aceito os ',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _openTermsOfService,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Termos de Uso',
+                              style: AppTypography.captionBold.copyWith(
+                                color: AppColorsPrimary.primary800,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColorsPrimary.primary800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '.',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _acceptedPrivacy,
+                      activeColor: AppColorsPrimary.primary900,
+                      onChanged: (value) => setState(() => _acceptedPrivacy = value ?? false),
+                    ),
+                    Expanded(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Li e aceito a ',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _openPrivacyPolicy,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Política de Privacidade',
+                              style: AppTypography.captionBold.copyWith(
+                                color: AppColorsPrimary.primary800,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColorsPrimary.primary800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '.',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.spacing16),
 
                 // Botão Continuar
                  _isLoading
