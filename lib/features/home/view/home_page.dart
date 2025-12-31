@@ -103,7 +103,7 @@ class _HomePageState extends State<HomePage> {
                         context: context,
                         iconPath: 'assets/icons/freelancer.svg',
                         title: 'Solicitar freelancer',
-                        subtitle: 'Precisa de um serviço? Solicite um freelancer agora e receba propostas',
+                        subtitle: 'Você poderá solicitar serviços diversos na sua região.',
                         delay: 0,
                         onTap: () {
                           Navigator.push(
