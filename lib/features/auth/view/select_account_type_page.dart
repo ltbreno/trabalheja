@@ -238,7 +238,7 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
               _buildAccountTypeCard(
                 iconPath: 'assets/icons/person_outline.png', // Use o nome correto do seu ícone
                 title: 'Cliente',
-                description: 'Sua conta poderá ver freelancers próximos para contratar.',
+                description: 'Você poderá solicitar serviços diversos na sua região.',
                 type: AccountType.client,
                 isSelected: _selectedAccountType == AccountType.client,
                 onTap: () => setState(() => _selectedAccountType = AccountType.client),
@@ -250,7 +250,7 @@ class _SelectAccountTypePageState extends State<SelectAccountTypePage> {
               _buildAccountTypeCard(
                 iconPath: 'assets/icons/briefcase.png',
                 title: 'Freelancer',
-                description: 'Sua conta poderá ver trabalhos próximos a sua região.',
+                description: 'Você poderá se candidatar a serviços solicitados em sua região.',
                 type: AccountType.freelancer,
                 isSelected: _selectedAccountType == AccountType.freelancer,
                 onTap: () => setState(() => _selectedAccountType = AccountType.freelancer),
