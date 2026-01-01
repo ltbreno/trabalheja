@@ -202,15 +202,29 @@ class _AddressPageState extends State<AddressPage> {
       final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
       Map<String, String>? mobilePhone;
       
+      // Aceitar telefone internacional no cadastro:
+      // Só tentar converter para o formato BR do Pagar.me quando o número parecer brasileiro.
       if (phoneDigits.length >= 10) {
-        // Assumindo formato brasileiro DDD + 9 digitos (11 total) ou DDD + 8 digitos (10 total)
-        final ddd = phoneDigits.substring(0, 2);
-        final number = phoneDigits.substring(2);
-        mobilePhone = {
-          'country_code': '55',
-          'area_code': ddd,
-          'number': number,
-        };
+        String? ddd;
+        String? number;
+
+        // Caso com DDI 55: 55 + DDD + número
+        if (phoneDigits.startsWith('55') && phoneDigits.length >= 12) {
+          ddd = phoneDigits.substring(2, 4);
+          number = phoneDigits.substring(4);
+        } else if (phoneDigits.length == 10 || phoneDigits.length == 11) {
+          // Caso nacional: DDD + número
+          ddd = phoneDigits.substring(0, 2);
+          number = phoneDigits.substring(2);
+        }
+
+        if (ddd != null && number != null) {
+          mobilePhone = {
+            'country_code': '55',
+            'area_code': ddd,
+            'number': number,
+          };
+        }
       }
 
       // Formatar data de nascimento: converter YYYY-MM-DD para MM/DD/AAAA (Formato Americano)
