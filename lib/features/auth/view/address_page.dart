@@ -1,10 +1,14 @@
 // lib/features/auth/view/address_page.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/core/utils/br_validators.dart';
+import 'package:trabalheja/core/utils/via_cep_service.dart';
 import 'package:trabalheja/features/account/view/privacy_policy_page.dart';
 import 'package:trabalheja/features/account/view/terms_of_service_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
@@ -42,6 +46,9 @@ class _AddressPageState extends State<AddressPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  bool _isCepLoading = false;
+  Timer? _cepDebounce;
+  String? _lastCepLookupDigits;
   String? _feedbackMessage; // Nova variável para mensagem de feedback
   bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
   bool _acceptedTerms = false;
@@ -54,7 +61,15 @@ class _AddressPageState extends State<AddressPage> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _cepController.addListener(_onCepChanged);
+  }
+
+  @override
   void dispose() {
+    _cepDebounce?.cancel();
+    _cepController.removeListener(_onCepChanged);
     _cepController.dispose();
     _bairroController.dispose();
     _ruaController.dispose();
@@ -62,6 +77,56 @@ class _AddressPageState extends State<AddressPage> {
     _complementoController.dispose();
     _cidadeController.dispose();
     super.dispose();
+  }
+
+  void _onCepChanged() {
+    // Evita disparar requisições a cada tecla.
+    _cepDebounce?.cancel();
+    _cepDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final cepDigits = BrValidators.onlyDigits(_cepController.text);
+      if (cepDigits.length != 8) return;
+      if (_isCepLoading) return;
+      if (_lastCepLookupDigits == cepDigits) return;
+      await _lookupCepAndAutofill(cepDigits);
+    });
+  }
+
+  Future<void> _lookupCepAndAutofill(String cepDigits) async {
+    setState(() {
+      _isCepLoading = true;
+      _lastCepLookupDigits = cepDigits;
+    });
+
+    try {
+      final address = await ViaCepService.fetchAddress(cepDigits);
+      if (!mounted) return;
+
+      if (address == null) {
+        _showFeedback('CEP não encontrado. Você pode preencher o endereço manualmente.', isError: true);
+        return;
+      }
+
+      // Preenche campos: usuário ainda pode ajustar manualmente.
+      _bairroController.text = address.bairro;
+      _ruaController.text = address.logradouro;
+
+      final city = address.localidade.trim();
+      final uf = address.uf.trim().toUpperCase();
+      if (city.isNotEmpty && uf.length == 2) {
+        _cidadeController.text = '$city, $uf';
+      } else if (city.isNotEmpty) {
+        _cidadeController.text = city;
+      }
+
+      _clearFeedback();
+    } catch (_) {
+      if (!mounted) return;
+      _showFeedback('Não foi possível buscar o CEP agora. Preencha o endereço manualmente.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isCepLoading = false);
+      }
+    }
   }
 
   void _showFeedback(String message, {bool isError = false}) {
@@ -369,6 +434,10 @@ class _AddressPageState extends State<AddressPage> {
                     return null;
                   },
                 ),
+                if (_isCepLoading) ...[
+                  const SizedBox(height: 8),
+                  const LinearProgressIndicator(minHeight: 2),
+                ],
                 const SizedBox(height: AppSpacing.spacing16),
 
                 // Campo Bairro
