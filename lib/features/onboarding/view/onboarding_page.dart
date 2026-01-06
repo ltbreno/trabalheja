@@ -68,7 +68,7 @@ class OnboardingPage extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.spacing12),
             Text(
-              'TrabalheJá facilita o encontro entre freelancers e quem precisa de um serviço!',
+              'Handsy facilita o encontro entre freelancers e quem precisa de um serviço!',
               textAlign: TextAlign.center,
               style: AppTypography.contentRegular.copyWith(
                 color: AppColorsNeutral.neutral600,

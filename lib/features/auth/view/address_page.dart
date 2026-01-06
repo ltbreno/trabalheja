@@ -1,10 +1,16 @@
 // lib/features/auth/view/address_page.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/core/utils/br_validators.dart';
+import 'package:trabalheja/core/utils/via_cep_service.dart';
+import 'package:trabalheja/features/account/view/privacy_policy_page.dart';
+import 'package:trabalheja/features/account/view/terms_of_service_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/core/widgets/MainAppShell.dart';
@@ -40,8 +46,13 @@ class _AddressPageState extends State<AddressPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  bool _isCepLoading = false;
+  Timer? _cepDebounce;
+  String? _lastCepLookupDigits;
   String? _feedbackMessage; // Nova variável para mensagem de feedback
   bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
+  bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
 
   // Máscara para CEP
   final _cepMaskFormatter = MaskTextInputFormatter(
@@ -50,7 +61,15 @@ class _AddressPageState extends State<AddressPage> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _cepController.addListener(_onCepChanged);
+  }
+
+  @override
   void dispose() {
+    _cepDebounce?.cancel();
+    _cepController.removeListener(_onCepChanged);
     _cepController.dispose();
     _bairroController.dispose();
     _ruaController.dispose();
@@ -58,6 +77,56 @@ class _AddressPageState extends State<AddressPage> {
     _complementoController.dispose();
     _cidadeController.dispose();
     super.dispose();
+  }
+
+  void _onCepChanged() {
+    // Evita disparar requisições a cada tecla.
+    _cepDebounce?.cancel();
+    _cepDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final cepDigits = BrValidators.onlyDigits(_cepController.text);
+      if (cepDigits.length != 8) return;
+      if (_isCepLoading) return;
+      if (_lastCepLookupDigits == cepDigits) return;
+      await _lookupCepAndAutofill(cepDigits);
+    });
+  }
+
+  Future<void> _lookupCepAndAutofill(String cepDigits) async {
+    setState(() {
+      _isCepLoading = true;
+      _lastCepLookupDigits = cepDigits;
+    });
+
+    try {
+      final address = await ViaCepService.fetchAddress(cepDigits);
+      if (!mounted) return;
+
+      if (address == null) {
+        _showFeedback('CEP não encontrado. Você pode preencher o endereço manualmente.', isError: true);
+        return;
+      }
+
+      // Preenche campos: usuário ainda pode ajustar manualmente.
+      _bairroController.text = address.bairro;
+      _ruaController.text = address.logradouro;
+
+      final city = address.localidade.trim();
+      final uf = address.uf.trim().toUpperCase();
+      if (city.isNotEmpty && uf.length == 2) {
+        _cidadeController.text = '$city, $uf';
+      } else if (city.isNotEmpty) {
+        _cidadeController.text = city;
+      }
+
+      _clearFeedback();
+    } catch (_) {
+      if (!mounted) return;
+      _showFeedback('Não foi possível buscar o CEP agora. Preencha o endereço manualmente.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isCepLoading = false);
+      }
+    }
   }
 
   void _showFeedback(String message, {bool isError = false}) {
@@ -76,6 +145,14 @@ class _AddressPageState extends State<AddressPage> {
 
   Future<void> _continue() async {
     _clearFeedback(); // Limpa feedback anterior
+
+    if (!_acceptedTerms || !_acceptedPrivacy) {
+      _showFeedback(
+        'Para concluir o cadastro, aceite os Termos de Uso e a Política de Privacidade.',
+        isError: true,
+      );
+      return;
+    }
 
     if (!(_formKey.currentState?.validate() ?? false)) {
       _showFeedback('Por favor, preencha todos os campos obrigatórios.', isError: true);
@@ -164,6 +241,20 @@ class _AddressPageState extends State<AddressPage> {
     }
   }
 
+  Future<void> _openTermsOfService() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+    );
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
+    );
+  }
+
   /// Cria um customer no Pagar.me para o cliente
   Future<void> _createPagarmeCustomer(String userId, String fullName) async {
     try {
@@ -176,15 +267,29 @@ class _AddressPageState extends State<AddressPage> {
       final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
       Map<String, String>? mobilePhone;
       
+      // Aceitar telefone internacional no cadastro:
+      // Só tentar converter para o formato BR do Pagar.me quando o número parecer brasileiro.
       if (phoneDigits.length >= 10) {
-        // Assumindo formato brasileiro DDD + 9 digitos (11 total) ou DDD + 8 digitos (10 total)
-        final ddd = phoneDigits.substring(0, 2);
-        final number = phoneDigits.substring(2);
-        mobilePhone = {
-          'country_code': '55',
-          'area_code': ddd,
-          'number': number,
-        };
+        String? ddd;
+        String? number;
+
+        // Caso com DDI 55: 55 + DDD + número
+        if (phoneDigits.startsWith('55') && phoneDigits.length >= 12) {
+          ddd = phoneDigits.substring(2, 4);
+          number = phoneDigits.substring(4);
+        } else if (phoneDigits.length == 10 || phoneDigits.length == 11) {
+          // Caso nacional: DDD + número
+          ddd = phoneDigits.substring(0, 2);
+          number = phoneDigits.substring(2);
+        }
+
+        if (ddd != null && number != null) {
+          mobilePhone = {
+            'country_code': '55',
+            'area_code': ddd,
+            'number': number,
+          };
+        }
       }
 
       // Formatar data de nascimento: converter YYYY-MM-DD para MM/DD/AAAA (Formato Americano)
@@ -329,6 +434,10 @@ class _AddressPageState extends State<AddressPage> {
                     return null;
                   },
                 ),
+                if (_isCepLoading) ...[
+                  const SizedBox(height: 8),
+                  const LinearProgressIndicator(minHeight: 2),
+                ],
                 const SizedBox(height: AppSpacing.spacing16),
 
                 // Campo Bairro
@@ -396,6 +505,99 @@ class _AddressPageState extends State<AddressPage> {
                   },
                 ),
                 const SizedBox(height: AppSpacing.spacing32),
+
+                // Aceites obrigatórios
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _acceptedTerms,
+                      activeColor: AppColorsPrimary.primary900,
+                      onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+                    ),
+                    Expanded(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Li e aceito os ',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _openTermsOfService,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Termos de Uso',
+                              style: AppTypography.captionBold.copyWith(
+                                color: AppColorsPrimary.primary800,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColorsPrimary.primary800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '.',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _acceptedPrivacy,
+                      activeColor: AppColorsPrimary.primary900,
+                      onChanged: (value) => setState(() => _acceptedPrivacy = value ?? false),
+                    ),
+                    Expanded(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Li e aceito a ',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _openPrivacyPolicy,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Política de Privacidade',
+                              style: AppTypography.captionBold.copyWith(
+                                color: AppColorsPrimary.primary800,
+                                decoration: TextDecoration.underline,
+                                decorationColor: AppColorsPrimary.primary800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '.',
+                            style: AppTypography.captionRegular.copyWith(
+                              color: AppColorsNeutral.neutral700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.spacing16),
 
                 // Botão Continuar
                  _isLoading

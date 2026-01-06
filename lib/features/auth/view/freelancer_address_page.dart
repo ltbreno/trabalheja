@@ -1,10 +1,14 @@
 // lib/features/auth/view/freelancer_address_page.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/core/utils/br_validators.dart';
+import 'package:trabalheja/core/utils/via_cep_service.dart';
 import 'package:trabalheja/features/auth/view/freelancer_radius_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
@@ -34,6 +38,9 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
+  bool _isCepLoading = false;
+  Timer? _cepDebounce;
+  String? _lastCepLookupDigits;
   String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
   bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
 
@@ -46,7 +53,56 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
   @override
   void initState() {
     super.initState();
+    _cepController.addListener(_onCepChanged);
     _loadAddressFromProfile();
+  }
+
+  void _onCepChanged() {
+    _cepDebounce?.cancel();
+    _cepDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final cepDigits = BrValidators.onlyDigits(_cepController.text);
+      if (cepDigits.length != 8) return;
+      if (_isCepLoading) return;
+      if (_lastCepLookupDigits == cepDigits) return;
+      await _lookupCepAndAutofill(cepDigits);
+    });
+  }
+
+  Future<void> _lookupCepAndAutofill(String cepDigits) async {
+    setState(() {
+      _isCepLoading = true;
+      _lastCepLookupDigits = cepDigits;
+    });
+
+    try {
+      final address = await ViaCepService.fetchAddress(cepDigits);
+      if (!mounted) return;
+
+      if (address == null) {
+        _showFeedback('CEP não encontrado. Você pode preencher o endereço manualmente.', isError: true);
+        return;
+      }
+
+      _bairroController.text = address.bairro;
+      _ruaController.text = address.logradouro;
+
+      final city = address.localidade.trim();
+      final uf = address.uf.trim().toUpperCase();
+      if (city.isNotEmpty && uf.length == 2) {
+        _cidadeController.text = '$city, $uf';
+      } else if (city.isNotEmpty) {
+        _cidadeController.text = city;
+      }
+
+      _clearFeedback();
+    } catch (_) {
+      if (!mounted) return;
+      _showFeedback('Não foi possível buscar o CEP agora. Preencha o endereço manualmente.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isCepLoading = false);
+      }
+    }
   }
 
   Future<void> _loadAddressFromProfile() async {
@@ -74,6 +130,8 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
 
   @override
   void dispose() {
+    _cepDebounce?.cancel();
+    _cepController.removeListener(_onCepChanged);
     _cepController.dispose();
     _bairroController.dispose();
     _ruaController.dispose();
@@ -285,6 +343,10 @@ class _FreelancerAddressPageState extends State<FreelancerAddressPage> {
                     return null;
                   },
                 ),
+                if (_isCepLoading) ...[
+                  const SizedBox(height: 8),
+                  const LinearProgressIndicator(minHeight: 2),
+                ],
                 const SizedBox(height: AppSpacing.spacing16),
 
                 // Campo Bairro

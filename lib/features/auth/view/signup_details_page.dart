@@ -1,7 +1,6 @@
 // lib/features/auth/view/signup_details_page.dart
 import 'package:flutter/material.dart';   
 import 'package:flutter/services.dart';
-import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
@@ -29,12 +28,10 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
   String? _errorMessage; // Variável para a mensagem de erro centralizada
-
-  // Máscara para telefone (ajuste conforme necessário para seu país)
-  final _phoneMaskFormatter = MaskTextInputFormatter(
-    mask: '(##) #####-####',
-    filter: {"#": RegExp(r'[0-9]')},
+  final _phoneAllowedCharsFormatter = FilteringTextInputFormatter.allow(
+    RegExp(r'[0-9+\s\-\(\)]'),
   );
+  static const int _maxPhoneChars = 24;
 
    @override
   void dispose() {
@@ -67,7 +64,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
     setState(() => _isLoading = true);
 
     try {
-      final phone = _phoneController.text;
+      final phone = _phoneController.text.trim();
       final password = _passwordController.text;
       
       // Criar conta no Supabase
@@ -136,7 +133,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
         backgroundColor: AppColorsNeutral.neutral0,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColorsNeutral.neutral900),
+          icon: const Icon(Icons.arrow_back, color: AppColorsNeutral.neutral900),
           onPressed: () {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -189,19 +186,33 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                 // Campo de Telefone com Máscara
                 AppTextField(
                   label: 'Qual seu telefone?',
-                  hintText: '(00) 00000-0000', // Exibe a máscara como hint
+                  hintText: '+55 11 91234-5678 ou +1 415 555 2671',
                   controller: _phoneController,
                   prefixIconPath: 'assets/icons/phone.svg', // Adapte o ícone
                   keyboardType: TextInputType.phone,
-                  inputFormatters: [_phoneMaskFormatter], // Aplica a máscara
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(_maxPhoneChars),
+                    _phoneAllowedCharsFormatter,
+                  ],
                   validator: (value) {
-                     if (value == null || value.isEmpty) {
-                       return 'Por favor, digite seu telefone';
-                     }
-                      // Validação adicional do telefone, se necessário
-                     if (!_phoneMaskFormatter.isFill()) {
-                        return 'Telefone incompleto';
-                     }
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Por favor, digite seu telefone';
+                    }
+
+                    final trimmed = value.trim();
+                    if (!trimmed.startsWith('+')) {
+                      return 'Use o formato internacional iniciando com "+" (ex: +55 11 91234-5678)';
+                    }
+
+                    // Aceitar números estrangeiros: validar apenas quantidade de dígitos (E.164 até 15)
+                    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (digits.length < 8) {
+                      return 'Telefone inválido';
+                    }
+                    if (digits.length > 15) {
+                      return 'Telefone inválido';
+                    }
+
                     return null;
                   },
                 ),
@@ -251,9 +262,7 @@ class _SignUpDetailsPageState extends State<SignUpDetailsPage> {
                 const SizedBox(height: AppSpacing.spacing32),
 
                 // Botão Continuar
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : AppButton.primary(
+                if (_isLoading) const Center(child: CircularProgressIndicator()) else AppButton.primary(
                         text: 'Continuar',
                         onPressed: _continue,
                         minWidth: double.infinity,

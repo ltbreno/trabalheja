@@ -274,35 +274,6 @@ class PaymentService {
     throw Exception('Criação de customer só é suportada via API REST Node.js');
   }
 
-  /// Cria um recipient (recebedor) no Pagar.me
-  ///
-  /// [name] - Nome do recebedor
-  /// [email] - Email do recebedor
-  /// [document] - CPF/CNPJ do recebedor
-  /// [bankAccount] - Dados da conta bancária
-  ///
-  /// Retorna os dados do recipient criado incluindo o ID
-  Future<Map<String, dynamic>> createRecipient({
-    required String name,
-    required String email,
-    required String document,
-    required Map<String, dynamic> bankAccount,
-  }) async {
-    if (PagarmeConfig.useRestApi) {
-      if (_restService == null) {
-        throw Exception('API REST não configurada. Verifique PagarmeConfig.restApiBaseUrl');
-      }
-      return await _restService.createRecipient(
-        name: name,
-        email: email,
-        document: document,
-        bankAccount: bankAccount,
-      );
-    }
-
-    throw Exception('Criação de recipient só é suportada via API REST Node.js');
-  }
-
   /// Cria uma transferência para um recipient
   ///
   /// Usado quando o serviço é finalizado para liberar o pagamento ao freelancer

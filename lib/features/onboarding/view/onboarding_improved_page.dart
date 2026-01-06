@@ -23,7 +23,7 @@ class _OnboardingImprovedPageState extends State<OnboardingImprovedPage> {
       imagePath: 'assets/images/onboarding_background.png',
       title: 'Conecte-se com\nfreelancers locais!',
       subtitle:
-          'TrabalheJá facilita o encontro entre freelancers e quem precisa de um serviço!',
+          'Handsy facilita o encontro entre freelancers e quem precisa de um serviço!',
     ),
     OnboardingData(
       imagePath: 'assets/images/onboarding_background_2.png',

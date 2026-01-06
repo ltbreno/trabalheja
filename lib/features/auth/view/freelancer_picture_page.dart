@@ -9,6 +9,8 @@ import 'package:trabalheja/core/constants/app_colors.dart';
 import 'package:trabalheja/core/constants/app_radius.dart';
 import 'package:trabalheja/core/constants/app_spacing.dart';
 import 'package:trabalheja/core/constants/app_typography.dart';
+import 'package:trabalheja/features/account/view/privacy_policy_page.dart';
+import 'package:trabalheja/features/account/view/terms_of_service_page.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/core/widgets/MainAppShell.dart';
 
@@ -36,6 +38,8 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
   final _supabase = Supabase.instance.client;
   String? _feedbackMessage; // Variável para a mensagem de feedback centralizada
   bool _isFeedbackError = false; // Se a mensagem é de erro ou sucesso
+  bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
 
   void _showFeedback(String message, {bool isError = false}) {
     setState(() {
@@ -84,6 +88,14 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
   }
 
   Future<void> _finalizeRegistration() async {
+    if (!_acceptedTerms || !_acceptedPrivacy) {
+      _showFeedback(
+        'Para finalizar o cadastro, aceite os Termos de Uso e a Política de Privacidade.',
+        isError: true,
+      );
+      return;
+    }
+
     // Foto agora é opcional - não precisa validar
     
     _clearFeedback(); // Limpa feedback anterior
@@ -346,6 +358,20 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
     }
   }
 
+  Future<void> _openTermsOfService() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+    );
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -407,7 +433,7 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
                     horizontal: AppSpacing.spacing16,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColorsPrimary.primary50.withOpacity(0.5), // Fundo roxo bem claro
+                    color: AppColorsPrimary.primary50.withValues(alpha: 0.5), // Fundo roxo bem claro
                     borderRadius: AppRadius.radius12,
                   ),
                   // Conteúdo muda se a imagem foi selecionada
@@ -433,6 +459,98 @@ class _FreelancerPicturePageState extends State<FreelancerPicturePage> {
                 ),
                 const SizedBox(height: AppSpacing.spacing16),
               ],
+
+              // Aceites obrigatórios
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _acceptedTerms,
+                    activeColor: AppColorsPrimary.primary900,
+                    onChanged: (value) => setState(() => _acceptedTerms = value ?? false),
+                  ),
+                  Expanded(
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'Li e aceito os ',
+                          style: AppTypography.captionRegular.copyWith(
+                            color: AppColorsNeutral.neutral700,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _openTermsOfService,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Termos de Uso',
+                            style: AppTypography.captionBold.copyWith(
+                              color: AppColorsPrimary.primary800,
+                              decoration: TextDecoration.underline,
+                              decorationColor: AppColorsPrimary.primary800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '.',
+                          style: AppTypography.captionRegular.copyWith(
+                            color: AppColorsNeutral.neutral700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _acceptedPrivacy,
+                    activeColor: AppColorsPrimary.primary900,
+                    onChanged: (value) => setState(() => _acceptedPrivacy = value ?? false),
+                  ),
+                  Expanded(
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'Li e aceito a ',
+                          style: AppTypography.captionRegular.copyWith(
+                            color: AppColorsNeutral.neutral700,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _openPrivacyPolicy,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Política de Privacidade',
+                            style: AppTypography.captionBold.copyWith(
+                              color: AppColorsPrimary.primary800,
+                              decoration: TextDecoration.underline,
+                              decorationColor: AppColorsPrimary.primary800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '.',
+                          style: AppTypography.captionRegular.copyWith(
+                            color: AppColorsNeutral.neutral700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
 
               const SizedBox(height: AppSpacing.spacing48), // Mais espaço
 

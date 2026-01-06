@@ -766,6 +766,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           final serviceRequestId = proposal['service_request_id'] as String;
                           final proposalId = proposal['id'] as String;
                           final serviceName = serviceRequest?['service_description'] as String? ?? 'Serviço';
+                          final message = proposal['message'] as String?; // Observações da proposta
                           final proposalKey = ValueKey(proposalId);
                           
                           Widget card;
@@ -777,6 +778,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                               location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                               price: _formatCurrency(price.toDouble()),
                               serviceName: serviceName,
+                              message: message,
                               paymentMethod: paymentDetails?['payment_method'] as String?,
                               paymentDate: paymentDetails?['created_at'] as String?,
                               releaseStatus: paymentDetails?['release_status'] as String?,
@@ -807,6 +809,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                                   location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                                   price: _formatCurrency(price.toDouble()),
                                   timeframe: 'Em até $availabilityValue $availabilityUnit',
+                                  message: message,
                                   hasPaidPayment: hasPaidPayment,
                                   paymentReleaseStatus: releaseStatus,
                                   onPay: () {
@@ -855,6 +858,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                               location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                               price: _formatCurrency(price.toDouble()),
                               timeframe: 'Em até $availabilityValue $availabilityUnit',
+                              message: message,
                               onAccept: () => _acceptProposal(proposal['id'] as String),
                               onReject: () => _rejectProposal(proposal['id'] as String),
                             );
@@ -984,6 +988,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                           final availabilityUnit = proposal['availability_unit'] as String? ?? 'Horas';
                           final serviceName = serviceRequest?['service_description'] as String? ?? 'Serviço';
                           final proposalId = proposal['id'] as String;
+                          final message = proposal['message'] as String?; // Observações da proposta
                           final proposalKey = ValueKey(proposalId);
                           
                           if (paymentStatus == 'paid') {
@@ -995,6 +1000,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                               location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                               price: _formatCurrency(price.toDouble()),
                               serviceName: serviceName,
+                              message: message,
                               paymentMethod: paymentDetails?['payment_method'] as String?,
                               paymentDate: paymentDetails?['created_at'] as String?,
                               releaseStatus: paymentDetails?['release_status'] as String?,
@@ -1018,6 +1024,7 @@ class _ProposalsPageState extends State<ProposalsPage> {
                               location: 'Em ${distance_util.AppDistanceCalculator.formatDistance(distance)}',
                               price: _formatCurrency(price.toDouble()),
                               timeframe: 'Em até $availabilityValue $availabilityUnit',
+                              message: message,
                               status: status,
                             ),
                           );

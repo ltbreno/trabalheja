@@ -12,6 +12,7 @@ class PaidProposalCard extends StatelessWidget {
   final String location;
   final String price;
   final String serviceName;
+  final String? message; // Observações da proposta
   final String? paymentMethod; // 'pix' ou 'credit_card'
   final String? paymentDate; // ISO 8601
   final String? releaseStatus; // 'retained' ou 'released'
@@ -23,6 +24,7 @@ class PaidProposalCard extends StatelessWidget {
     required this.location,
     required this.price,
     required this.serviceName,
+    this.message,
     this.paymentMethod,
     this.paymentDate,
     this.releaseStatus,
@@ -161,6 +163,46 @@ class PaidProposalCard extends StatelessWidget {
             iconPath: 'assets/icons/credit_card.svg',
             text: price,
           ),
+          // Exibir observações se houver
+          if (message != null && message!.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.spacing12),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.spacing12),
+              decoration: BoxDecoration(
+                color: AppColorsNeutral.neutral50,
+                borderRadius: AppRadius.radius8,
+                border: Border.all(color: AppColorsNeutral.neutral200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.description,
+                        size: 16,
+                        color: AppColorsPrimary.primary900,
+                      ),
+                      const SizedBox(width: AppSpacing.spacing8),
+                      Text(
+                        'Observações',
+                        style: AppTypography.captionBold.copyWith(
+                          color: AppColorsPrimary.primary900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.spacing8),
+                  Text(
+                    message!,
+                    style: AppTypography.captionRegular.copyWith(
+                      color: AppColorsNeutral.neutral700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: AppSpacing.spacing16),
 

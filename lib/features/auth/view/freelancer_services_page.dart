@@ -109,15 +109,15 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                 ),
                 const SizedBox(height: AppSpacing.spacing24),
 
-                // Campo Serviços Oferecidos
+                // Campo Pitch / Apresentação
                 AppTextField(
-                  label: 'Serviços oferecidos',
-                  hintText: 'Liste os serviços que você realiza',
+                  label: 'Fale sobre você e o seu trabalho/serviços',
+                  hintText: 'Fale sobre você e o seu trabalho/serviços',
                   controller: _servicesController,
                   keyboardType: TextInputType.multiline, // Permite múltiplas linhas
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Por favor, liste seus serviços';
+                      return 'Por favor, fale sobre você e o seu trabalho/serviços';
                     }
                     return null;
                   },
@@ -146,7 +146,7 @@ class _FreelancerServicesPageState extends State<FreelancerServicesPage> {
                               throw Exception('Usuário não autenticado');
                             }
 
-                            // Salvar nome e serviços no perfil
+                            // Salvar nome e pitch no perfil (campo "services")
                             // Criar perfil parcialmente se não existir
                             
                             // Verificar se o perfil já existe

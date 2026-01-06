@@ -17,8 +17,13 @@ class FreelancerRadiusPage extends StatefulWidget {
   // final String fullName;
   // final Map<String, dynamic> addressData;
 
+  /// Quando true, ao salvar a localização/raio a tela apenas volta (pop)
+  /// ao invés de continuar o fluxo de onboarding (ex: foto do freelancer).
+  final bool popOnSave;
+
   const FreelancerRadiusPage({
     super.key,
+    this.popOnSave = false,
     // required this.fullName,
     // required this.addressData,
   });
@@ -66,7 +71,20 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
   @override
   void initState() {
     super.initState();
-    _askAndLoadCurrentLocation();
+    // Carregar localização automaticamente ao abrir a tela
+    // Usar addPostFrameCallback para garantir que o widget está montado
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _askAndLoadCurrentLocation();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Atualizar localização quando a tela for exibida novamente
+    if (_currentCenter == null) {
+      _askAndLoadCurrentLocation();
+    }
   }
 
   void _showFeedback(String message, {bool isError = false}) {
@@ -267,7 +285,12 @@ class _FreelancerRadiusPageState extends State<FreelancerRadiusPage> {
 
       if (!mounted) return;
 
-      // Navegar para FreelancerPicturePage
+      if (widget.popOnSave) {
+        Navigator.pop(context, true);
+        return;
+      }
+
+      // Fluxo de onboarding: continuar para FreelancerPicturePage
       Navigator.push(
         context,
         MaterialPageRoute(

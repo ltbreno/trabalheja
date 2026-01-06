@@ -8,6 +8,7 @@ import 'package:trabalheja/core/constants/app_typography.dart';
 import 'package:trabalheja/features/home/widgets/app.button.dart';
 import 'package:trabalheja/features/home/widgets/app_text_field.dart';
 import 'package:trabalheja/features/auth/view/client_birthdate_page.dart';
+import 'package:trabalheja/core/utils/br_validators.dart';
 
 class ClientCpfPage extends StatefulWidget {
   final String email;
@@ -61,7 +62,7 @@ class _ClientCpfPageState extends State<ClientCpfPage> {
     setState(() => _isLoading = true);
 
     try {
-      final cpf = _cpfController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      final cpf = BrValidators.onlyDigits(_cpfController.text);
       final user = _supabase.auth.currentUser;
 
       if (user == null) {
@@ -171,10 +172,7 @@ class _ClientCpfPageState extends State<ClientCpfPage> {
                     if (value == null || value.isEmpty) {
                       return 'Por favor, informe seu CPF';
                     }
-                    final cpf = value.replaceAll(RegExp(r'[^0-9]'), '');
-                    if (cpf.length != 11) {
-                      return 'CPF deve conter 11 dígitos';
-                    }
+                    if (!BrValidators.isValidCpf(value)) return 'CPF inválido';
                     return null;
                   },
                 ),
